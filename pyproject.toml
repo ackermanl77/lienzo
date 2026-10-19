@@ -1,0 +1,15 @@
+[project]
+name = "lienzo"
+version = "0.1.0"
+description = "Editor de diseños local (escritorio), inspirado en el modelo de diseños de Canva."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

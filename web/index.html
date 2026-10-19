@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lienzo</title>
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="home-top">
+    <a class="brand" href="/"><span class="logo">L</span>Lienzo</a>
+    <span class="muted small">Tus diseños se guardan en esta PC</span>
+  </header>
+  <main class="home">
+    <section class="hero">
+      <h1>¿Qué vas a diseñar hoy?</h1>
+      <p>Elige un formato o empieza con una plantilla. Todo funciona sin internet.</p>
+    </section>
+
+    <div class="section-title"><h2>Crear un diseño</h2></div>
+    <div id="formats" class="formats"></div>
+    <form id="custom" class="custom">
+      <b>Tamaño personalizado</b>
+      <input id="custom-w" type="number" min="40" max="8000" value="1200" aria-label="Ancho en píxeles"> ×
+      <input id="custom-h" type="number" min="40" max="8000" value="800" aria-label="Alto en píxeles">
+      <span class="muted">px</span>
+      <button class="btn primary" type="submit">Crear diseño</button>
+      <span class="muted small">de 40 a 8000 px por lado</span>
+    </form>
+
+    <div class="section-title"><h2>Empieza con una plantilla</h2><span class="muted small">Publicación cuadrada (1080 × 1080)</span></div>
+    <div id="templates" class="cards"></div>
+
+    <div class="section-title"><h2>Tus diseños</h2><span id="count" class="muted small"></span></div>
+    <div id="designs" class="cards"></div>
+  </main>
+  <script type="module" src="/js/home.js"></script>
+</body>
+</html>

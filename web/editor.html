@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lienzo · Editor</title>
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="editor">
+    <header class="topbar">
+      <button id="home" class="btn icon" title="Inicio" aria-label="Inicio"></button>
+      <input id="title" class="title" type="text" maxlength="120" aria-label="Nombre del diseño">
+      <button id="undo" class="btn icon" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"></button>
+      <button id="redo" class="btn icon" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer"></button>
+      <span id="status" class="status"></span>
+      <span class="spacer"></span>
+      <span id="size" class="small"></span>
+      <button id="play" class="btn" title="Reproducir con animaciones (pantalla completa)">Reproducir</button>
+      <button id="export" class="btn primary">Descargar</button>
+    </header>
+
+    <div id="workspace" class="workspace">
+      <nav class="rail" aria-label="Herramientas">
+        <button data-panel="templates">Plantillas</button>
+        <button data-panel="elements">Elementos</button>
+        <button data-panel="text">Texto</button>
+        <button data-panel="photos">Fotos</button>
+        <button data-panel="uploads">Subidos</button>
+        <button data-panel="background">Fondo</button>
+        <button data-panel="ai">IA</button>
+        <button data-panel="animate">Animar</button>
+        <button data-panel="layers">Capas</button>
+      </nav>
+      <aside id="panel" class="panel" aria-live="polite"></aside>
+
+      <section class="stage">
+        <div id="ctxbar" class="ctxbar" role="toolbar" aria-label="Opciones del elemento"></div>
+        <div id="viewport" class="viewport">
+          <canvas id="canvas" tabindex="0" aria-label="Página del diseño"></canvas>
+        </div>
+        <footer class="bottombar">
+          <div id="pages" class="pages" aria-label="Páginas"></div>
+          <button id="add-page" class="btn" title="Agregar página">+ Página</button>
+          <button id="dup-page" class="btn icon" title="Duplicar página" aria-label="Duplicar página"></button>
+          <button id="del-page" class="btn icon" title="Eliminar página" aria-label="Eliminar página"></button>
+          <div class="zoom">
+            <button id="fit" class="btn icon" title="Ajustar a la pantalla" aria-label="Ajustar a la pantalla"></button>
+            <input id="zoom" type="range" min="5" max="400" value="100" aria-label="Zoom">
+            <output id="zoom-out">100 %</output>
+          </div>
+        </footer>
+      </section>
+    </div>
+  </div>
+  <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" multiple hidden>
+  <input id="font-input" type="file" accept=".ttf,.otf,.woff,.woff2" hidden>
+  <script type="module" src="/js/editor.js"></script>
+</body>
+</html>
