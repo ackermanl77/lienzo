@@ -8,3 +8,5 @@ build/
 dist/
 Lienzo-App/
 *.spec.bak
+# graphify knowledge-graph output (regenerated locally)
+graphify-out/
