@@ -88,6 +88,16 @@ def test_saving_duplicating_and_deleting_a_design(server):
     assert call(server, "DELETE", f"/api/disenos/{d['id']}")[0] == 404
 
 
+def test_rejected_design_update_does_not_change_saved_design(server):
+    d = call(server, "POST", "/api/disenos", {"formato": "logo"})[1]
+    original_title = d["title"]
+    d["title"] = "No guardar"
+    status, error, _ = call(server, "PUT", f"/api/disenos/{d['id']}",
+                            {"diseno": d, "miniatura": "data:image/png;base64,***"})
+    assert status == 400 and "error" in error
+    assert call(server, "GET", f"/api/disenos/{d['id']}")[1]["title"] == original_title
+
+
 def test_uploading_and_serving_images(server):
     status, asset, _ = call(server, "POST", "/api/imagenes", raw=png_bytes((50, 40)),
                             headers={"X-Filename": "mi%20foto.png", "Content-Type": "application/octet-stream"})

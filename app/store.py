@@ -93,9 +93,27 @@ def save_design(raw: Any, thumbnail: Optional[str] = None) -> Dict[str, Any]:
         old = load_design(design["id"])
         if old:
             design["created"] = old.get("created", design["created"])
-        atomic_write(_design_path(design["id"]), json.dumps(design, ensure_ascii=False).encode("utf-8"))
-        if thumbnail:
-            atomic_write(thumb_path(design["id"]), decode_png_data_url(thumbnail, MAX_THUMB_BYTES))
+        design_path = _design_path(design["id"])
+        thumbnail_path = thumb_path(design["id"])
+        thumbnail_bytes = decode_png_data_url(thumbnail, MAX_THUMB_BYTES) if thumbnail else None
+        previous_design = None
+        if os.path.exists(design_path):
+            with open(design_path, "rb") as f:
+                previous_design = f.read()
+        design_bytes = json.dumps(design, ensure_ascii=False).encode("utf-8")
+        try:
+            atomic_write(design_path, design_bytes)
+            if thumbnail_bytes is not None:
+                atomic_write(thumbnail_path, thumbnail_bytes)
+        except OSError:
+            if previous_design is None:
+                try:
+                    os.remove(design_path)
+                except FileNotFoundError:
+                    pass
+            else:
+                atomic_write(design_path, previous_design)
+            raise
     return design
 
 

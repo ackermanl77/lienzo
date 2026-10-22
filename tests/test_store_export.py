@@ -35,8 +35,41 @@ def test_saving_keeps_the_creation_date():
 @pytest.mark.parametrize("bad", ["", "data:image/png;base64,***", "data:image/jpeg;base64,AAAA",
                                  "data:image/png;base64,aGVsbG8="])
 def test_thumbnails_must_be_real_pngs(bad):
+    design = model.new_design(500, 500)
+    saved = store.save_design(design)
     with pytest.raises(store.StoreError):
-        store.save_design(model.new_design(500, 500), bad or "x")
+        store.save_design(dict(saved, title="No guardar"), bad or "x")
+    assert store.load_design(saved["id"])["title"] == saved["title"]
+    assert store.list_designs()[0]["id"] == saved["id"]
+
+
+def test_invalid_thumbnail_does_not_create_design():
+    design = model.new_design(500, 500)
+    with pytest.raises(store.StoreError):
+        store.save_design(design, "data:image/png;base64,***")
+    assert store.load_design(design["id"]) is None
+    assert store.list_designs() == []
+
+
+@pytest.mark.parametrize("existing", [True, False])
+def test_failed_thumbnail_write_does_not_persist_design(existing, monkeypatch):
+    design = model.new_design(500, 500)
+    saved = store.save_design(design) if existing else design
+    original_atomic_write = store.atomic_write
+
+    def fail_thumbnail_write(path, data):
+        if path == store.thumb_path(saved["id"]):
+            raise OSError("thumbnail write failed")
+        original_atomic_write(path, data)
+
+    monkeypatch.setattr(store, "atomic_write", fail_thumbnail_write)
+    with pytest.raises(OSError, match="thumbnail write failed"):
+        store.save_design(dict(saved, title="No guardar"), png_data_url())
+    persisted = store.load_design(saved["id"])
+    if existing:
+        assert persisted["title"] == saved["title"]
+    else:
+        assert persisted is None
 
 
 def test_uploads_are_validated_listed_served_and_hidden():
