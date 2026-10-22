@@ -30,8 +30,11 @@ function templateCard(template) {
   card.className = "card";
   const design = { width: 1080, height: 1080 };
   template.pagina.elements.forEach(fitTextHeight);
-  const thumb = document.createElement("div");
+  // A real button: reachable with Tab and announced by screen readers (a clickable div was neither).
+  const thumb = document.createElement("button");
+  thumb.type = "button";
   thumb.className = "thumb";
+  thumb.setAttribute("aria-label", `Usar la plantilla «${template.nombre}» (${template.categoria})`);
   thumb.appendChild(renderPage(design, template.pagina, 260));
   const info = document.createElement("div");
   info.className = "info";
@@ -59,8 +62,10 @@ function toolButton(icon, title, handler) {
 function designCard(item) {
   const card = document.createElement("div");
   card.className = "card";
-  const thumb = document.createElement("div");
+  const thumb = document.createElement("button");
+  thumb.type = "button";
   thumb.className = "thumb";
+  thumb.setAttribute("aria-label", `Abrir «${item.title}»`);
   if (item.thumb) {
     const img = document.createElement("img");
     img.src = item.thumb;

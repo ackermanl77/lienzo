@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6c3cf0"/><stop offset="1" stop-color="#12b5b0"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#g)"/><path d="M22 16v32h22" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="44" cy="20" r="6" fill="#ffde59"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Lienzo: a page with overlapping shapes and text bars, a design layout (coral tile). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7a6b"/>
+      <stop offset="1" stop-color="#e8475f"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <rect x="58" y="40" width="140" height="176" rx="14" fill="#ffffff"/>
+  <circle cx="106" cy="98" r="30" fill="#ffd23c"/>
+  <rect x="112" y="78" width="58" height="58" rx="8" fill="#e8475f" opacity="0.9"/>
+  <rect x="78" y="156" width="100" height="14" rx="7" fill="#2b2f3a"/>
+  <rect x="78" y="180" width="66" height="12" rx="6" fill="#9aa1ad"/>
+</svg>
