@@ -67,7 +67,9 @@ diseños que Canva documenta públicamente (ver
   "Guardar como".
 
 Los datos viven en `%LOCALAPPDATA%\Lienzo` (diseños, miniaturas, imágenes
-subidas y registro); `LIENZO_DATA_DIR` lo cambia.
+subidas y registro); `LIENZO_DATA_DIR` lo cambia. Cada diseño se guarda de
+forma atómica, y si no se puede escribir su miniatura se vuelve al diseño
+guardado antes, así que nunca queda a medias.
 
 ## Usar
 
@@ -99,6 +101,9 @@ node --test tests/js/model.test.mjs        # geometría, texto, guías e histori
 .venv\Scripts\python -m ruff check app tests
 ```
 
+Última corrida (2026-10-22, Python 3.14): 55 pruebas de Python y 12 de
+JavaScript, todas pasan.
+
 ## Estructura
 
 ```
@@ -114,7 +119,8 @@ app/
   net.py        descargas https con límites y sin direcciones privadas
   server.py     servidor local (solo 127.0.0.1) + API JSON con clave de acceso
   desktop.py    ventana pywebview (WebView2) y el diálogo "Guardar como"
-  main.py       punto de entrada (--navegador, --puerto, --depurar)
+  main.py       punto de entrada (--navegador, --puerto, --depurar); __main__.py: python -m app
+  paths.py      dónde viven los datos del usuario y los archivos de la página
 web/
   index.html, editor.html, css/app.css
   js/model.js   geometría, texto, guías, historial (sin DOM; probado con Node)
@@ -122,7 +128,8 @@ web/
   js/player.js  reproducción a pantalla completa y grabación de video
   js/graphics.js galería de gráficos vectoriales
   js/editor.js  el editor
-  js/home.js, js/api.js, js/icons.js
+  js/home.js, js/api.js, js/icons.js, img/icon.svg
+scripts/smoke_test.ps1  prueba el .exe empaquetado
 docs/EVIDENCIA.md  la evidencia pública de Canva y la de REA sobre Lienzo
 ```
 
