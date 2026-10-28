@@ -113,6 +113,23 @@ $("custom").addEventListener("submit", (e) => {
   run(async () => open((await api.createDesign({ ancho: Number($("custom-w").value), alto: Number($("custom-h").value) })).id));
 });
 
+// Una versión nueva (app/update_check.py; el servidor la busca una vez al arrancar, en segundo
+// plano, así que se pregunta un poco después). Sin feed configurado la respuesta es {}.
+setTimeout(async () => {
+  const info = await api.update().catch(() => ({}));
+  if (!info.version) return;
+  const banner = $("update");
+  const text = document.createElement("span");
+  text.textContent = `Lienzo ${info.version} ya está disponible.${info.notas ? ` ${info.notas}` : ""}`;
+  const link = document.createElement("a");
+  link.href = info.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Descargar";
+  banner.replaceChildren(text, link);
+  banner.classList.remove("hidden");
+}, 6000);
+
 run(async () => {
   const [formats, templates] = await Promise.all([api.formats(), api.templates(1080, 1080)]);
   formats.forEach((f) => $("formats").appendChild(formatCard(f)));

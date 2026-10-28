@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install
+        run: python -m pip install -r requirements-dev.txt
+      - name: Lint
+        run: python -m ruff check app tests
+      - name: Python tests
+        run: python -m pytest -q
+      - name: JavaScript tests
+        # A bare folder fails on Node 24; name the files.
+        run: node --test tests/js/model.test.mjs tests/js/autosave.test.mjs
+
+  audit:
+    # Known vulnerabilities in the required Python packages (OSV / PyPI advisory data).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: pip-audit
+        run: |
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit -r requirements.txt --progress-spinner off

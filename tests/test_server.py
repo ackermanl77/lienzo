@@ -204,3 +204,50 @@ def test_the_brand_kit_is_cleaned_and_kept(server):
     assert saved["logo"] == "0123456789abcdef" and saved["colores"] == ["#123456"]
     many = call(server, "PUT", "/api/marca", {"colores": [f"#{i:06x}" for i in range(40)]})[1]
     assert len(many["colores"]) == 24
+
+
+def test_update_route_reports_a_found_update_only(server, monkeypatch):
+    from app import server as server_module
+    from app import update_check
+
+    assert call(server, "GET", "/api/actualizacion")[:2] == (200, {})
+    monkeypatch.setattr(server_module, "_found_update",
+                        update_check.UpdateInfo("9.0.0", "https://example.com/get", "Más rápido"))
+    status, info, _ = call(server, "GET", "/api/actualizacion")
+    assert status == 200
+    assert info == {"version": "9.0.0", "url": "https://example.com/get", "notas": "Más rápido"}
+
+
+def test_uncaught_errors_go_to_the_log(monkeypatch):
+    import logging
+    import sys
+
+    records = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    logging.getLogger("lienzo").addHandler(handler)
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
+    monkeypatch.setattr(threading, "excepthook", threading.excepthook)
+    try:
+        app_main._install_excepthooks()
+        worker = threading.Thread(target=lambda: 1 / 0)
+        worker.start()
+        worker.join()
+    finally:
+        logging.getLogger("lienzo").removeHandler(handler)
+    assert records and records[0].exc_info[0] is ZeroDivisionError
+
+
+def test_a_window_that_cannot_open_shows_a_message(monkeypatch):
+    shown = []
+    monkeypatch.setattr(app_main, "_show_error", shown.append)
+    monkeypatch.setattr(app_main, "_configure_logging", lambda: None)
+    monkeypatch.setattr(app_main, "_install_excepthooks", lambda: None)
+
+    def broken_run(**kwargs):
+        raise RuntimeError("sin WebView2")
+
+    import app.desktop
+    monkeypatch.setattr(app.desktop, "run", broken_run)
+    assert app_main.main([]) == 1
+    assert "sin WebView2" in shown[0]

@@ -1,0 +1,65 @@
+name: Release
+
+# Al subir una etiqueta de versión (git tag v0.2.0 && git push origin v0.2.0):
+#   1. corre el workflow CI completo (ruff, pruebas de Python y de JavaScript, pip-audit);
+#   2. comprueba que la etiqueta coincida con app.__version__;
+#   3. build.bat: entorno limpio, avisos de terceros, PyInstaller, prueba del .exe y el
+#      instalador de Inno Setup (viene instalado en windows-latest);
+#   4. publica un GitHub Release con el .zip de la carpeta, el instalador y SHA256SUMS.txt.
+# Preparado, todavía sin ejecutar: no se subió ninguna etiqueta.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write  # crear el Release y subir los archivos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Comprobar la etiqueta contra app.__version__
+        shell: pwsh
+        run: |
+          $version = python -c "import app; print(app.__version__)"
+          if ("${{ github.ref_name }}" -ne "v$version") {
+            Write-Error "La etiqueta ${{ github.ref_name }} no coincide con app.__version__ ($version)"
+            exit 1
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Build, prueba del .exe e instalador
+        shell: cmd
+        env:
+          LIENZO_PYTHON: python
+        # build.bat termina con "pause": un Enter lo deja seguir.
+        run: echo. | build.bat
+
+      - name: Zip y checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Compress-Archive -Path dist\Lienzo -DestinationPath "release\Lienzo-$env:VERSION-windows-x64.zip"
+          Copy-Item "dist\installer\Lienzo-$env:VERSION-setup.exe" release\
+          Get-ChildItem release | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Out-File -Encoding ascii release\SHA256SUMS.txt
+
+      - name: Publicar el release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" (Get-ChildItem release).FullName `
+            --title "Lienzo ${{ github.ref_name }}" --notes-file CHANGELOG.md

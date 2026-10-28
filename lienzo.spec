@@ -5,7 +5,8 @@ a = Analysis(
     ["lienzo.py"],
     pathex=[],
     binaries=[],
-    datas=[("web", "web")],
+    # The license and third-party notices travel with every build (scripts/third_party_notices.py).
+    datas=[("web", "web"), ("LICENSE", "."), ("THIRD_PARTY_NOTICES.md", ".")],
     hiddenimports=["webview.platforms.winforms", "webview.platforms.edgechromium", "clr"],
     excludes=["tkinter", "unittest", "pydoc", "pytest", "numpy"],
     noarchive=False,

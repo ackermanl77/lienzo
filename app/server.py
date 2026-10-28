@@ -46,9 +46,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from . import ai, exporter, fonts, imaging, model, paths, stock, store, templates
+from . import __version__, ai, exporter, fonts, imaging, model, paths, stock, store, templates, update_check
 
 logger = logging.getLogger(__name__)
+
+# La versión nueva que encontró start_update_check(), si hay una (la página la pide a
+# /api/actualizacion). Nunca se busca mientras update_check.UPDATE_FEED_URL esté vacío.
+_found_update: Optional[update_check.UpdateInfo] = None
+
+
+def start_update_check() -> None:
+    def found(info: update_check.UpdateInfo) -> None:
+        global _found_update
+        _found_update = info
+
+    update_check.check_in_background(__version__, found)
 
 MAX_JSON_BYTES = 40 * 1024 * 1024
 MAX_EXPORT_BYTES = 600 * 1024 * 1024
@@ -255,6 +267,12 @@ def _brand(req, m):
 @route("PUT", r"/api/marca")
 def _save_brand(req, m):
     return store.save_brand(req.json())
+
+
+@route("GET", r"/api/actualizacion")
+def _update(req, m):
+    info = _found_update
+    return {} if info is None else {"version": info.version, "url": info.url, "notas": info.notes}
 
 
 @route("GET", r"/api/ia/estado")

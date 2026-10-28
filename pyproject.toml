@@ -3,6 +3,7 @@ name = "lienzo"
 version = "0.1.0"
 description = "Editor de diseños local (escritorio), inspirado en el modelo de diseños de Canva."
 requires-python = ">=3.11"
+license = { text = "MIT" }
 
 [tool.ruff]
 line-length = 120

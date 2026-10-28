@@ -12,13 +12,18 @@ echo ============================================
 echo  Lienzo - build de Windows
 echo ============================================
 
+REM LIENZO_PYTHON (opcional): el Python que crea el entorno, p. ej. en CI, donde "py" puede
+REM no ver el Python instalado por actions/setup-python.
+if not defined LIENZO_PYTHON set "LIENZO_PYTHON=py -%LIENZO_PYVER%"
 if exist .build-venv rmdir /s /q .build-venv
-py -%LIENZO_PYVER% -m venv .build-venv || goto :error
+%LIENZO_PYTHON% -m venv .build-venv || goto :error
 .build-venv\Scripts\python -m pip install --quiet --upgrade pip || goto :error
 .build-venv\Scripts\python -m pip install --quiet -r requirements.txt pyinstaller || goto :error
 
 if exist build rmdir /s /q build
 if exist dist\Lienzo rmdir /s /q dist\Lienzo
+REM THIRD_PARTY_NOTICES.md: las licencias de lo que se empaqueta (el .spec lo incluye).
+.build-venv\Scripts\python scripts\third_party_notices.py || goto :error
 .build-venv\Scripts\python -m PyInstaller --noconfirm --clean lienzo.spec || goto :error
 
 echo.

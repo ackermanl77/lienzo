@@ -70,6 +70,7 @@ export const api = {
   brand: () => request("GET", "/api/marca"),
   saveBrand: (brand) => request("PUT", "/api/marca", { json: brand }),
   aiStatus: () => request("GET", "/api/ia/estado"),
+  update: () => request("GET", "/api/actualizacion"),
   aiSettings: (url, modelo) => request("PUT", "/api/ia/ajustes", { json: { url, modelo } }),
   aiWrite: (instruccion, idioma) => request("POST", "/api/ia/escribir", { json: { instruccion, idioma } }),
   aiRewrite: (texto, modo) => request("POST", "/api/ia/reescribir", { json: { texto, modo } }),
