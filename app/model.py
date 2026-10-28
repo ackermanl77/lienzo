@@ -26,6 +26,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
 MIN_SIDE = 40
@@ -92,11 +93,18 @@ def is_asset_id(value: Any) -> bool:
 def check_size(width: Any, height: Any) -> tuple:
     """El tamaño validado (enteros) o DesignError."""
     try:
-        w, h = int(width), int(height)
-    except (TypeError, ValueError):
-        raise DesignError("El tamaño debe ser un número de píxeles.") from None
-    if not (MIN_SIDE <= w <= MAX_SIDE and MIN_SIDE <= h <= MAX_SIDE):
+        if isinstance(width, bool) or isinstance(height, bool):
+            raise ValueError
+        numeric_width, numeric_height = Decimal(str(width)), Decimal(str(height))
+        if not (numeric_width.is_finite() and numeric_height.is_finite()
+                and numeric_width == numeric_width.to_integral_value()
+                and numeric_height == numeric_height.to_integral_value()):
+            raise ValueError
+    except (InvalidOperation, OverflowError, TypeError, ValueError):
+        raise DesignError("El tamaño debe ser un número entero y finito de píxeles.") from None
+    if not (MIN_SIDE <= numeric_width <= MAX_SIDE and MIN_SIDE <= numeric_height <= MAX_SIDE):
         raise DesignError(f"Cada lado debe medir entre {MIN_SIDE} y {MAX_SIDE} px.")
+    w, h = int(numeric_width), int(numeric_height)
     if w * h > MAX_AREA:
         raise DesignError("El diseño es demasiado grande (máximo 25 millones de píxeles).")
     return w, h

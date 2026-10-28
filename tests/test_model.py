@@ -13,6 +13,11 @@ def test_sizes_follow_the_documented_limits():
     for bad in ((39, 100), (100, 8001), ("x", 100), (None, 100)):
         with pytest.raises(model.DesignError):
             model.check_size(*bad)
+    assert model.check_size(40.0, "8000") == (40, 8000)
+    for bad in ((40.5, 100), (100, 50.25), (float("inf"), 100), (100, float("-inf")),
+                (float("nan"), 100), (True, 100)):
+        with pytest.raises(model.DesignError):
+            model.check_size(*bad)
     with pytest.raises(model.DesignError):
         model.check_size(6000, 6000)  # 36 MP > 25 MP
 

@@ -64,6 +64,8 @@ def test_designs_are_created_from_formats_templates_and_custom_sizes(server):
     assert (c["format"], c["title"]) == ("custom", "Mío")
     status, err, _ = call(server, "POST", "/api/disenos", {"ancho": 10, "alto": 600})
     assert status == 400 and "entre 40 y 8000" in err["error"]
+    for width in (800.5, float("inf")):
+        assert call(server, "POST", "/api/disenos", {"ancho": width, "alto": 600})[0] == 400
     assert call(server, "POST", "/api/disenos", {"formato": "instagram_post", "plantilla": "zzz"})[0] == 400
     assert len(call(server, "GET", "/api/disenos")[1]) == 3
     assert len(call(server, "GET", "/api/plantillas?ancho=1920&alto=1080")[1]) == 8

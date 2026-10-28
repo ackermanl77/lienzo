@@ -19,6 +19,7 @@ from . import store
 
 FORMATS = {"png": ("image/png", "png"), "jpg": ("image/jpeg", "jpg"), "pdf": ("application/pdf", "pdf")}
 MAX_PAGE_BYTES = 80 * 1024 * 1024
+MAX_EXPORT_PIXELS = 60_000_000
 
 
 def safe_name(title: str) -> str:
@@ -29,7 +30,21 @@ def safe_name(title: str) -> str:
 def _images(pages: Sequence[str]) -> List[Image.Image]:
     if not pages:
         raise store.StoreError("No hay páginas para exportar.")
-    return [Image.open(io.BytesIO(store.decode_png_data_url(page, MAX_PAGE_BYTES))) for page in pages]
+    images = []
+    total_pixels = 0
+    try:
+        for page in pages:
+            image = Image.open(io.BytesIO(store.decode_png_data_url(page, MAX_PAGE_BYTES)))
+            total_pixels += image.width * image.height
+            if total_pixels > MAX_EXPORT_PIXELS:
+                image.close()
+                raise store.StoreError("La exportación supera el límite de píxeles decodificados.")
+            images.append(image)
+    except Exception:
+        for image in images:
+            image.close()
+        raise
+    return images
 
 
 def _flatten(image: Image.Image) -> Image.Image:

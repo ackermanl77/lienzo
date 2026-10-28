@@ -217,10 +217,18 @@ def _register(data: bytes, ext: str, meta: Dict[str, Any]) -> Dict[str, Any]:
     asset_id = model.new_id(16)
     meta = {"ext": ext, "added": time.time(), **meta}
     with _lock:
-        atomic_write(os.path.join(_dir("assets"), f"{asset_id}.{ext}"), data)
-        index = _asset_index()
-        index[asset_id] = meta
-        _save_asset_index(index)
+        asset_path = os.path.join(_dir("assets"), f"{asset_id}.{ext}")
+        atomic_write(asset_path, data)
+        try:
+            index = _asset_index()
+            index[asset_id] = meta
+            _save_asset_index(index)
+        except Exception:
+            try:
+                os.remove(asset_path)
+            except OSError:
+                pass
+            raise
     return _asset_view(asset_id, meta)
 
 

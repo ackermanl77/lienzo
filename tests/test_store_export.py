@@ -1,5 +1,6 @@
 """Guardado en disco e imágenes subidas; exportación PNG/JPG/ZIP/PDF."""
 import io
+import os
 import zipfile
 
 import pytest
@@ -90,6 +91,19 @@ def test_uploads_are_validated_listed_served_and_hidden():
     assert store.asset_file("../../secret") is None
 
 
+def test_asset_file_is_removed_when_index_persistence_fails(monkeypatch):
+    asset_id = "1" * 16
+    monkeypatch.setattr(store.model, "new_id", lambda length: asset_id)
+
+    def fail_index(_index):
+        raise OSError("index write failed")
+
+    monkeypatch.setattr(store, "_save_asset_index", fail_index)
+    with pytest.raises(OSError, match="index write failed"):
+        store.add_asset(png_bytes((4, 4)), "asset.png")
+    assert not os.path.exists(os.path.join(store._dir("assets"), f"{asset_id}.png"))
+
+
 def test_png_and_jpg_exports_of_one_page():
     data, name, mime = exporter.build("png", [png_data_url((30, 20))], "Mi: diseño?", 300)
     assert (name, mime) == ("Mi diseño.png", "image/png")
@@ -119,3 +133,9 @@ def test_bad_exports_are_refused():
         exporter.build("gif", [png_data_url()], "x")
     with pytest.raises(store.StoreError):
         exporter.build("png", [], "x")
+
+
+def test_exports_enforce_an_aggregate_decoded_pixel_limit(monkeypatch):
+    monkeypatch.setattr(exporter, "MAX_EXPORT_PIXELS", 100)
+    with pytest.raises(store.StoreError, match="píxeles decodificados"):
+        exporter.build("pdf", [png_data_url((8, 8)), png_data_url((8, 8))], "x")

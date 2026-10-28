@@ -149,5 +149,10 @@ docs/EVIDENCIA.md  la evidencia pública de Canva y la de REA sobre Lienzo
 - Las descargas de internet (`app/net.py`) son solo https, con tamaño y
   tiempo limitados, y rechazan direcciones privadas o locales. Las fotos se
   piden de nuevo a Openverse por su id; nunca se usa una URL enviada por la
-  página.
+  página. La comprobación DNS no fija la dirección usada por `urllib`, así
+  que no elimina por completo el riesgo de rebinding DNS en estas descargas.
+- El export limita a 60 millones de píxeles decodificados en total. El cierre
+  del navegador durante una escritura en curso aún puede interrumpir el
+  guardado automático; `fetch` con `keepalive` no es fiable para diseños
+  grandes por el límite de tamaño del navegador.
 - La IA solo acepta servidores en 127.0.0.1, localhost o ::1.
