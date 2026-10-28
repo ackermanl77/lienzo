@@ -15,7 +15,7 @@ Los cambios importantes de Lienzo. El formato sigue
 - Guardado automático confiable en el editor, también al cerrar la pestaña.
 - Registro de errores no capturados en `lienzo.log`, y un mensaje visible si la ventana no
   puede abrirse.
-- Comprobación de versión nueva, apagada hasta que se configure un feed de versiones; con una
+- Comprobación de versión nueva una vez por arranque, contra los GitHub Releases del proyecto (update.json); con una
   versión nueva, el inicio muestra un aviso con el enlace de descarga.
 - Integración continua (ruff, pruebas de Python y de JavaScript) y una auditoría de
   dependencias (`pip-audit`); Dependabot.

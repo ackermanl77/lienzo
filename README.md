@@ -159,7 +159,7 @@ docs/EVIDENCIA.md  la evidencia pública de Canva y la de REA sobre Lienzo
 Tus diseños, imágenes y videos se quedan en esta PC. Lienzo se conecta a internet solo cuando
 tú lo pides: al usar una fuente de Google Fonts (se descarga de fonts.googleapis.com) y al
 buscar o importar fotos de Openverse (las palabras que buscas se envían a api.openverse.org).
-La IA local solo habla con un servidor en esta misma PC. Una versión publicada puede activar la comprobación de actualizaciones: una vez por arranque descarga un pequeño archivo de versión del sitio de descargas y no envía más que el nombre y la versión de la app. No hay telemetría.
+La IA local solo habla con un servidor en esta misma PC. Una vez por arranque la app busca una versión nueva: descarga un pequeño archivo de versión (update.json) de los GitHub Releases del proyecto y no envía más que el nombre y la versión de la app. Para apagarlo, pon la variable de entorno LIENZO_UPDATE_FEED_URL en off. No hay telemetría.
 
 ## Seguridad
 

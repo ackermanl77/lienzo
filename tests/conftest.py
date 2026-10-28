@@ -6,6 +6,8 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Nunca preguntar a GitHub por una versión nueva durante las pruebas (update_check.py).
+os.environ["LIENZO_UPDATE_FEED_URL"] = "off"
 
 
 @pytest.fixture(autouse=True)
