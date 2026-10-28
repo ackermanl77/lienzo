@@ -65,6 +65,27 @@ def atomic_write(path: str, data: bytes) -> None:
             os.remove(tmp)
 
 
+# ---------------- kit de marca (UI4) ----------------
+def _brand_path() -> str:
+    return os.path.join(paths.data_dir(), "brand.json")
+
+
+def load_brand() -> Dict[str, Any]:
+    try:
+        with open(_brand_path(), encoding="utf-8") as f:
+            return model.sanitize_brand(json.load(f))
+    except (OSError, ValueError):
+        return model.sanitize_brand({})
+
+
+def save_brand(raw: Any) -> Dict[str, Any]:
+    brand = model.sanitize_brand(raw)
+    with _lock:
+        os.makedirs(paths.data_dir(), exist_ok=True)
+        atomic_write(_brand_path(), json.dumps(brand, ensure_ascii=False).encode("utf-8"))
+    return brand
+
+
 # ---------------- diseños ----------------
 def _design_path(design_id: str) -> str:
     if not model.is_design_id(design_id):

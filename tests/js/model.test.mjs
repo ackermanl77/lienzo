@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  History, bounds, corners, elementAt, hitTest, makeImage, makeShape, makeText, resizeBox, rotate,
+  History, MAX_DRAW_POINTS, bounds, corners, elementAt, hitTest, makeDrawing, makeImage, makeShape, makeText, resizeBox, resizeDesign, rotate,
   rotationFromPointer, snap, toLocal, unionBounds, wrapText,
 } from "../../web/js/model.js";
 
@@ -163,4 +163,50 @@ test("groups expand selections and transform as one", () => {
   assert.equal(ra.rotation, 20);
   assert.equal(rb.rotation, -170);
   close(ra.left + 50, 100 + Math.cos(((225 + 20) * Math.PI) / 180) * Math.SQRT2 * 50, 1e-6);
+});
+
+test("Cambiar tamaño: proportional positions, uniform scale, full-page elements still cover (UI3)", () => {
+  const design = {
+    id: "d", title: "Post", width: 1000, height: 1000,
+    pages: [{ id: "p", background: { color: "#fff" }, elements: [
+      { id: "bg", type: "rect", left: 0, top: 0, width: 1000, height: 1000, rotation: 0, radius: 0 },
+      { id: "t", type: "text", left: 400, top: 100, width: 200, height: 60, rotation: 0, fontSize: 50 },
+      { id: "s", type: "rect", left: 850, top: 850, width: 100, height: 100, rotation: 10, stroke: { color: "#000", width: 4 } },
+    ] }],
+  };
+  const story = resizeDesign(design, 1080, 1920);
+  assert.equal(story.width, 1080);
+  assert.equal(story.height, 1920);
+  assert.equal(design.width, 1000); // the original is untouched
+  const [bg, text, shape] = story.pages[0].elements;
+  // The background scales by the larger factor (1.92) and still covers the taller page.
+  assert.ok(bg.left <= 0 && bg.top <= 0 && bg.left + bg.width >= 1080 && bg.top + bg.height >= 1920);
+  // Everything else by the smaller (1.08), centred where it was in proportion.
+  close(text.fontSize, 54);
+  close(text.left + text.width / 2, 500 * 1.08);
+  close(text.top + text.height / 2, 130 * 1.92);
+  close(shape.width, 108);
+  close(shape.stroke.width, 4 * 1.08);
+  assert.equal(shape.rotation, 10);
+  assert.ok(shape.left + shape.width <= 1080 && shape.top + shape.height <= 1920); // nothing pushed off the page
+  assert.equal(text.type, "text"); // every other field kept
+});
+
+test("a freehand stroke becomes a draw element whose points are fractions of its box (UI4)", () => {
+  const points = [{ x: 100, y: 100 }, { x: 100.1, y: 100 }, { x: 200, y: 150 }, { x: 300, y: 100 }];
+  const el = makeDrawing(points, "#ff0000", 10);
+  assert.equal(el.type, "draw");
+  assert.deepEqual(el.stroke, { color: "#ff0000", width: 10 });
+  // The box wraps the points plus half the thickness.
+  close(el.left, 95);
+  close(el.top, 95);
+  close(el.width, 210);
+  close(el.height, 60);
+  assert.equal(el.points.length, 3); // the near-repeat was dropped
+  assert.ok(el.points.every(([x, y]) => x >= 0 && x <= 1 && y >= 0 && y <= 1));
+  close(el.points[1][0] * el.width + el.left, 200);
+  close(el.points[1][1] * el.height + el.top, 150);
+  assert.equal(makeDrawing([{ x: 5, y: 5 }, { x: 5.1, y: 5 }], "#000000", 8), null); // a click, not a stroke
+  const long = Array.from({ length: 5000 }, (_, i) => ({ x: i, y: Math.sin(i / 50) * 100 }));
+  assert.ok(makeDrawing(long, "#000000", 2).points.length <= MAX_DRAW_POINTS + 1);
 });

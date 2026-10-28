@@ -167,6 +167,15 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; font: inherit; color: inherit; }
 .panel input[type=text], .panel input[type=search], .panel select { width: 100%; margin-bottom: 8px; }
 .panel .row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.panel .row[hidden] { display: none; }
+.panel .row > input[type=color] { flex: 0 0 44px; height: 36px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.brand-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.brand-item { position: relative; display: inline-flex; margin: 0 6px 6px 0; }
+.brand-swatch { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); padding: 0; }
+.brand-font { min-width: 120px; justify-content: flex-start; }
+.brand-remove { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; min-width: 0; padding: 0;
+  border-radius: 50%; font-size: 12px; line-height: 1; display: none; }
+.brand-item:hover .brand-remove, .brand-item:focus-within .brand-remove { display: inline-flex; align-items: center; justify-content: center; }
 .panel .row > input, .panel .row > select { margin-bottom: 0; flex: 1; min-width: 0; }
 .panel .btn.block { width: 100%; justify-content: center; margin-bottom: 8px; }
 .panel .note { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
@@ -193,3 +202,37 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 .player-bar .btn { background: #222; border-color: #333; color: #eee; }
 .progress-modal .bar { height: 8px; background: var(--accent-soft); border-radius: 9px; overflow: hidden; margin: 12px 0; }
 .progress-modal .bar div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ================= teléfono / ventana estrecha (UI2) =================
+   La barra de herramientas pasa abajo como barra de pestañas, el panel se abre como una hoja
+   sobre la parte baja del lienzo (que sigue visible encima) y Descargar queda siempre a la vista. */
+@media (max-width: 720px) {
+  /* minmax(0, 1fr): una columna "1fr" no baja del ancho mínimo de su contenido, y el editor
+     medía 492 px en una pantalla de 390 (Descargar quedaba fuera). */
+  .editor { grid-template-rows: 48px 1fr; grid-template-columns: minmax(0, 1fr); }
+  .topbar { gap: 4px; padding: 0 8px; }
+  .topbar .title { width: auto; flex: 1; min-width: 0; }
+  .topbar .spacer, .topbar #size { display: none; }
+  .topbar .status { min-width: 0; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .topbar #play { display: none; }
+  .workspace, .workspace.panel-closed {
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "stage" "rail";
+  }
+  .stage { grid-area: stage; }
+  .rail {
+    grid-area: rail; flex-direction: row; overflow-x: auto; padding: 0; border-right: 0;
+    border-top: 1px solid var(--border); scrollbar-width: none;
+  }
+  .rail button { flex: 0 0 auto; min-width: 64px; padding: 6px 6px 5px; font-size: 11px; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 58px; height: 46vh; z-index: 20;
+    border: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: var(--shadow);
+  }
+  .workspace.panel-closed .panel { display: none; }
+  .ctxbar { flex-wrap: nowrap; overflow-x: auto; min-height: 46px; }
+  .ctxbar > * { flex: 0 0 auto; }
+  .bottombar { gap: 6px; padding: 6px 8px; }
+  .bottombar .pages { flex: 1; min-width: 0; overflow-x: auto; }
+  .zoom input, .zoom output { display: none; }
+}

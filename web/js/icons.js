@@ -32,5 +32,6 @@ export const ICONS = {
   animate: svg('<circle cx="15" cy="12" r="6"/><path d="M3 8h5M2 12h5M3 16h5"/>'),
   play: svg('<path d="M7 4l13 8-13 8z"/>'),
   group: svg('<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><rect x="7" y="7" width="5" height="5"/><rect x="12" y="12" width="5" height="5"/>'),
+  brand: svg('<path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16z"/><path d="M14 7l3 3"/><circle cx="6" cy="6" r="2"/>'),
   table: svg('<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/>'),
 };

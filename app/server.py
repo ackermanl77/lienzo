@@ -28,6 +28,7 @@ Rutas de la API:
     POST   /api/fuentes/google               {familia}
     POST   /api/fuentes/subir                cuerpo = .ttf/.otf/.woff/.woff2, X-Filename, X-Family
     DELETE /api/fuentes?familia=
+    GET    /api/marca | PUT /api/marca {colores, fuentes, logo}   (kit de marca)
     GET    /api/ia/estado | PUT /api/ia/ajustes {url, modelo}
     POST   /api/ia/escribir {instruccion, idioma} | /api/ia/reescribir {texto, modo} | /api/ia/diseno {...}
 """
@@ -244,6 +245,16 @@ def _font_delete(req, m):
     if not fonts.remove(req.query.get("familia", [""])[0]):
         raise ApiError(HTTPStatus.NOT_FOUND, "Fuente no encontrada.")
     return {}
+
+
+@route("GET", r"/api/marca")
+def _brand(req, m):
+    return store.load_brand()
+
+
+@route("PUT", r"/api/marca")
+def _save_brand(req, m):
+    return store.save_brand(req.json())
 
 
 @route("GET", r"/api/ia/estado")

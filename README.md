@@ -85,6 +85,26 @@ Supr (eliminar), flechas (mover 1 px, con Mayús 10 px), Ctrl+A,
 Ctrl+B / I / U, Ctrl+] / Ctrl+[ (orden), Ctrl+0 (ajustar), Ctrl+S (guardar),
 Enter (editar el texto seleccionado), Esc.
 
+**Marca** (pestaña de la barra lateral): el kit de marca, guardado para todos
+los diseños. Un color de marca se aplica a lo seleccionado (texto, relleno o
+trazo) o, sin selección, al fondo de la página; una fuente, al texto
+seleccionado; el logo (una imagen de Subidos) se agrega a la página con un clic.
+
+**Dibujar** (panel Elementos): con *Dibujar a mano alzada* activo, arrastrar
+sobre la página traza una línea con el color y el grosor elegidos; cada trazo
+queda como un elemento (se mueve, escala, gira y deshace como cualquier otro, y
+seleccionado se le cambia el color y el grosor). Esc termina.
+
+**Cambiar tamaño** (arriba del panel Plantillas) crea una copia del diseño en
+otro formato —o en un tamaño personalizado— y la abre: cada elemento queda en
+el mismo lugar en proporción, escalado sin deformarse, y lo que cubría toda la
+página la sigue cubriendo. El diseño original no cambia.
+
+En una pantalla estrecha (un teléfono, o una ventana de 720 px o menos) las
+herramientas pasan a una barra de pestañas abajo; cada panel se abre como una
+hoja sobre la parte baja del lienzo (se cierra tocando su pestaña otra vez) y
+**Descargar** queda siempre arriba a la vista.
+
 ## Empaquetar
 
 `build.bat` crea un entorno limpio (`.build-venv`) y genera

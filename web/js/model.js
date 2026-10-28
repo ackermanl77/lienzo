@@ -264,6 +264,7 @@ export function makeImage(asset, design, at = null) {
 export const newPage = () => ({ id: newId(), background: { color: "#ffffff" }, elements: [] });
 
 export function describe(el) {
+  if (el.type === "draw") return "Dibujo";
   if (el.type === "text") return el.text.split("\n")[0].slice(0, 28) || "Texto";
   if (el.type === "table") return `Tabla ${el.rows} × ${el.cols}`;
   if (el.type === "graphic") return `Gráfico: ${el.name}`;
@@ -271,6 +272,35 @@ export function describe(el) {
   if (el.type === "rect") return el.fill && el.fill.image ? "Imagen" : el.radius ? "Rectángulo redondeado" : "Rectángulo";
   const shape = SHAPES.find((s) => s.kind === el.kind);
   return shape ? shape.label : "Forma";
+}
+
+export const MAX_DRAW_POINTS = 2000;
+
+/**
+ * Un trazo a mano alzada (UI4) como elemento "draw": su caja rodea los puntos (más medio grosor),
+ * y los puntos se guardan como fracciones de esa caja, así que moverlo, escalarlo, girarlo o
+ * cambiar el tamaño del diseño funcionan como con cualquier otro elemento. Los puntos casi
+ * repetidos se descartan; null si el trazo no tiene al menos dos puntos distintos.
+ */
+export function makeDrawing(points, color, width) {
+  const kept = [];
+  const minStep = Math.max(0.5, width * 0.15);
+  for (const p of points) {
+    const last = kept[kept.length - 1];
+    if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= minStep) kept.push(p);
+  }
+  if (kept.length < 2) return null;
+  const step = Math.ceil(kept.length / MAX_DRAW_POINTS);
+  const pts = step > 1 ? kept.filter((_, i) => i % step === 0 || i === kept.length - 1) : kept;
+  const pad = width / 2;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const left = Math.min(...xs) - pad, top = Math.min(...ys) - pad;
+  const w = Math.max(1, Math.max(...xs) + pad - left), h = Math.max(1, Math.max(...ys) + pad - top);
+  return base({
+    type: "draw", left, top, width: w, height: h,
+    points: pts.map((p) => [(p.x - left) / w, (p.y - top) / h]),
+    stroke: { color, width },
+  });
 }
 
 /** Un elemento copiado con id nuevo y un pequeño desplazamiento. */
@@ -472,6 +502,36 @@ export function scaleElements(starts, from, to) {
     if (st.borderWidth) out.borderWidth = st.borderWidth * s;
     return out;
   });
+}
+
+/** Si `el` cubre (casi) toda la página: un fondo o una foto a sangre, sin girar. */
+function coversPage(el, width, height) {
+  const tol = 0.01;
+  return !el.rotation && el.left <= width * tol && el.top <= height * tol
+    && el.left + el.width >= width * (1 - tol) && el.top + el.height >= height * (1 - tol);
+}
+
+/**
+ * Una copia de `design` en otro tamaño ("Cambiar tamaño", UI3). El centro de cada elemento se
+ * mueve en proporción a la página, y el elemento se escala de forma uniforme por el menor de los
+ * dos factores, para que nada se deforme ni se salga; lo que cubría toda la página (un fondo, una
+ * foto a sangre) se escala por el mayor, para que la siga cubriendo.
+ */
+export function resizeDesign(design, width, height) {
+  const sx = width / design.width, sy = height / design.height;
+  const unit = { left: 0, top: 0, width: 1, height: 1 };
+  const copy = clone(design);
+  copy.width = width;
+  copy.height = height;
+  for (const page of copy.pages) {
+    page.elements = page.elements.map((el) => {
+      const k = coversPage(el, design.width, design.height) ? Math.max(sx, sy) : Math.min(sx, sy);
+      const [scaled] = scaleElements([el], unit, { ...unit, width: k });
+      const c = center(el);
+      return { ...el, ...scaled, left: c.x * sx - scaled.width / 2, top: c.y * sy - scaled.height / 2 };
+    });
+  }
+  return copy;
 }
 
 /** Gira elementos (copias de su estado inicial) `delta` grados alrededor de `origin`. */

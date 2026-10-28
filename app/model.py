@@ -37,7 +37,8 @@ MAX_ELEMENTS = 500
 MAX_TEXT = 5000
 MAX_TITLE = 120
 
-ELEMENT_TYPES = ("rect", "shape", "text", "table", "graphic")
+ELEMENT_TYPES = ("rect", "shape", "text", "table", "graphic", "draw")
+MAX_DRAW_POINTS = 2000  # web/js/model.js MAX_DRAW_POINTS
 SHAPE_KINDS = ("ellipse", "triangle", "star", "hexagon", "diamond", "arrow", "line", "heart")
 FONTS = (
     "Arial", "Georgia", "Times New Roman", "Verdana", "Trebuchet MS", "Segoe UI", "Bahnschrift",
@@ -144,6 +145,26 @@ def _font(value: Any) -> str:
     return value if isinstance(value, str) and (value in FONTS or _FONT_RE.match(value)) else "Arial"
 
 
+MAX_BRAND_COLORS = 24
+MAX_BRAND_FONTS = 12
+
+
+def sanitize_brand(raw: Any) -> Dict[str, Any]:
+    """El kit de marca (UI4) limpio: colores #rrggbb sin repetir, fuentes válidas sin repetir y un
+    logo que es una imagen subida (o ninguno)."""
+    raw = raw if isinstance(raw, dict) else {}
+    colors: List[str] = []
+    for value in raw.get("colores") if isinstance(raw.get("colores"), list) else []:
+        if isinstance(value, str) and _COLOR_RE.match(value) and value.lower() not in colors:
+            colors.append(value.lower())
+    fonts: List[str] = []
+    for value in raw.get("fuentes") if isinstance(raw.get("fuentes"), list) else []:
+        if isinstance(value, str) and (value in FONTS or _FONT_RE.match(value)) and value not in fonts:
+            fonts.append(value)
+    logo = raw.get("logo") if isinstance(raw.get("logo"), str) and _ASSET_ID_RE.match(raw["logo"]) else None
+    return {"colores": colors[:MAX_BRAND_COLORS], "fuentes": fonts[:MAX_BRAND_FONTS], "logo": logo}
+
+
 def _animation(value: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(value, dict) or value.get("type") not in ANIMATIONS or value.get("type") == "none":
         return None
@@ -205,6 +226,15 @@ def sanitize_element(raw: Any, width: int, height: int) -> Optional[Dict[str, An
         el["stroke"] = _stroke(raw.get("stroke"))
     elif el["type"] == "table":
         _table(raw, el)
+    elif el["type"] == "draw":
+        # UI4: a freehand stroke -- its points as fractions of the element's box.
+        points = raw.get("points") if isinstance(raw.get("points"), list) else []
+        el["points"] = [[_num(p[0], 0, 0, 1), _num(p[1], 0, 0, 1)] for p in points[:MAX_DRAW_POINTS]
+                        if isinstance(p, (list, tuple)) and len(p) == 2]
+        if len(el["points"]) < 2:
+            return None
+        stroke = raw.get("stroke") if isinstance(raw.get("stroke"), dict) else {}
+        el["stroke"] = {"color": _color(stroke.get("color"), "#1f2933"), "width": _num(stroke.get("width"), 6, 0.5, 200)}
     elif el["type"] == "graphic":
         el["name"] = raw["name"] if isinstance(raw.get("name"), str) and _GRAPHIC_RE.match(raw["name"]) else "star"
         el["fill"] = _fill(raw.get("fill"), "#6c3cf0")

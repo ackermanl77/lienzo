@@ -274,6 +274,24 @@ function drawGraphic(ctx, el) {
   ctx.restore();
 }
 
+/** Un trazo "draw" (UI4): curvas por los puntos medios, con extremos y uniones redondeados. */
+export function drawStroke(ctx, el) {
+  const pts = (el.points || []).map(([x, y]) => [x * el.width, y * el.height]);
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mid = [(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2];
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], mid[0], mid[1]);
+  }
+  ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = (el.stroke && el.stroke.width) || 4;
+  ctx.strokeStyle = (el.stroke && el.stroke.color) || "#1f2933";
+  ctx.stroke();
+}
+
 export function drawElement(ctx, el, time = null) {
   const a = animState(el, time);
   if (a.alpha <= 0) return;
@@ -295,6 +313,8 @@ export function drawElement(ctx, el, time = null) {
     drawTable(ctx, el, a.text);
   } else if (el.type === "graphic") {
     drawGraphic(ctx, el);
+  } else if (el.type === "draw") {
+    drawStroke(ctx, el);
   }
   ctx.restore();
 }

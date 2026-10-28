@@ -81,3 +81,16 @@ def test_every_template_builds_a_valid_page_inside_the_page(size):
 def test_unknown_templates_are_refused():
     with pytest.raises(model.DesignError):
         templates.template_page("nope", 100, 100)
+
+
+def test_a_freehand_drawing_is_kept_and_its_points_cleaned():
+    """UI4: draw elements keep up to MAX_DRAW_POINTS points inside 0..1 and a sane stroke; a
+    stroke without two usable points is dropped."""
+    raw = {"type": "draw", "left": 10, "top": 20, "width": 200, "height": 100,
+           "points": [[0, 0], [0.5, 1.7], ["x", 0.2], [1, 0.5], [0.2]], "stroke": {"color": "#FF0000", "width": 0}}
+    el = model.sanitize_element(raw, 1080, 1080)
+    assert el["type"] == "draw" and el["points"] == [[0, 0], [0.5, 1], [0, 0.2], [1, 0.5]]
+    assert el["stroke"] == {"color": "#ff0000", "width": 0.5}
+    assert model.sanitize_element({**raw, "points": [[0.5, 0.5]]}, 1080, 1080) is None
+    many = model.sanitize_element({**raw, "points": [[0.1, 0.1]] * 5000}, 1080, 1080)
+    assert len(many["points"]) == model.MAX_DRAW_POINTS

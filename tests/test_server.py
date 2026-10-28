@@ -189,3 +189,18 @@ def test_ai_routes_report_a_missing_server(server):
     status, err, _ = call(server, "POST", "/api/ia/escribir", {"instruccion": "hola"})
     assert status == 400 and "Ollama" in err["error"]
     assert call(server, "POST", "/api/ia/diseno", {"descripcion": "x", "ancho": 10, "alto": 10})[0] == 400
+
+
+def test_the_brand_kit_is_cleaned_and_kept(server):
+    """UI4: GET/PUT /api/marca keep valid, unique colours and fonts and an uploaded-image logo."""
+    status, empty, _ = call(server, "GET", "/api/marca")
+    assert status == 200 and empty == {"colores": [], "fuentes": [], "logo": None}
+    body = {"colores": ["#FF0000", "#ff0000", "red", "#00ff00"], "fuentes": ["Arial", "Arial", "../x", "Mi Fuente 2"],
+            "logo": "../../secret"}
+    status, saved, _ = call(server, "PUT", "/api/marca", body)
+    assert status == 200 and saved == {"colores": ["#ff0000", "#00ff00"], "fuentes": ["Arial", "Mi Fuente 2"], "logo": None}
+    assert call(server, "GET", "/api/marca")[1] == saved
+    status, saved, _ = call(server, "PUT", "/api/marca", {**saved, "logo": "0123456789abcdef", "colores": ["#123456"] * 1})
+    assert saved["logo"] == "0123456789abcdef" and saved["colores"] == ["#123456"]
+    many = call(server, "PUT", "/api/marca", {"colores": [f"#{i:06x}" for i in range(40)]})[1]
+    assert len(many["colores"]) == 24

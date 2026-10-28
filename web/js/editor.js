@@ -9,7 +9,7 @@ import { ICONS } from "./icons.js";
 import {
   ANIMATIONS, FONTS, History, PAGE_DURATION, PALETTE, SHAPES, bounds, cellAt, center, clone, corners, describe,
   duplicateElement, elementAt, expandGroups, fontString, intersects, makeGraphic, makeImage, makeShape, makeTable,
-  makeText, makeVideo, newId, newPage, resizeBox, rotate, rotateElements, rotationFromPointer, scaleElements, snap,
+  makeDrawing, makeText, makeVideo, newId, newPage, resizeBox, resizeDesign, rotate, rotateElements, rotationFromPointer, scaleElements, snap,
   tableInsertCol, tableInsertRow, tableRemoveCol, tableRemoveRow, toLocal, unionBounds,
 } from "./model.js";
 import { present, recordVideo, videoFormat } from "./player.js";
@@ -32,7 +32,7 @@ const COLORS = {
 const state = {
   design: null, pageIndex: 0, selection: [], zoom: 1, offset: { x: 0, y: 0 }, dpr: window.devicePixelRatio || 1,
   panel: "templates", interaction: null, hoverId: null, guides: [], marquee: null, editingId: null,
-  clipboard: null, assets: [], templates: null, pending: null, spaceDown: false,
+  clipboard: null, assets: [], templates: null, pending: null, spaceDown: false, drawMode: null,
   fonts: [], catalog: [], activeCell: null, stock: null, ai: null, busy: false,
 };
 const history = new History(100);
@@ -221,6 +221,7 @@ function draw() {
       ctx.restore();
     }
   }
+  if (state.interaction && state.interaction.type === "draw") drawLiveStroke(state.interaction);
   ctx.restore();
   drawOverlay();
   // los videos de la página se reproducen (sin sonido) mientras se ven
@@ -233,6 +234,65 @@ function draw() {
     }
     render();
   }
+}
+
+// ---- Dibujar a mano alzada (UI4) ----
+function drawLiveStroke(it) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = state.drawMode.width;
+  ctx.strokeStyle = state.drawMode.color;
+  ctx.beginPath();
+  it.points.forEach((pt, i) => (i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y)));
+  ctx.stroke();
+  ctx.restore();
+}
+
+function setDrawMode(on) {
+  if (on) {
+    commitTextEdit();
+    state.drawMode = state.drawMode || { color: state.drawColor || "#6c3cf0", width: state.drawWidth || 8 };
+    state.selection = [];
+  } else {
+    state.drawMode = null;
+  }
+  canvas.style.cursor = on ? "crosshair" : "default";
+  document.querySelectorAll("[data-draw-toggle]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(Boolean(on)));
+    b.textContent = on ? "Terminar de dibujar" : "Dibujar a mano alzada";
+  });
+  refresh();
+}
+
+function drawBlock() {
+  const b = block("Dibujar");
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = "Arrastra sobre la página para dibujar; cada trazo queda como un elemento. Esc termina.";
+  const toggle = button(state.drawMode ? "Terminar de dibujar" : "Dibujar a mano alzada", "Dibujar a mano alzada", () => setDrawMode(!state.drawMode));
+  toggle.dataset.drawToggle = "";
+  toggle.setAttribute("aria-pressed", String(Boolean(state.drawMode)));
+  toggle.classList.add("block");
+  const color = document.createElement("input");
+  Object.assign(color, { type: "color", value: (state.drawMode && state.drawMode.color) || state.drawColor || "#6c3cf0" });
+  color.setAttribute("aria-label", "Color del trazo");
+  color.addEventListener("input", () => {
+    state.drawColor = color.value;
+    if (state.drawMode) state.drawMode.color = color.value;
+  });
+  const width = document.createElement("input");
+  Object.assign(width, { type: "range", min: 1, max: 60, value: (state.drawMode && state.drawMode.width) || state.drawWidth || 8 });
+  width.setAttribute("aria-label", "Grosor del trazo");
+  width.addEventListener("input", () => {
+    state.drawWidth = Number(width.value);
+    if (state.drawMode) state.drawMode.width = Number(width.value);
+  });
+  const row = document.createElement("div");
+  row.className = "row";
+  row.append(color, width);
+  b.append(note, toggle, row);
+  return b;
 }
 
 /** Esquinas en pantalla de la celda (r, c) de una tabla. */
@@ -393,6 +453,11 @@ canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
   commitTextEdit();
   const p = toWorldXY(screen.x, screen.y);
+  if (state.drawMode) {
+    state.interaction = { type: "draw", points: [p] };
+    canvas.setPointerCapture(e.pointerId);
+    return;
+  }
   const handle = handleAt(screen);
   if (handle) {
     const frame = selectionFrame();
@@ -440,7 +505,7 @@ canvas.addEventListener("pointermove", (e) => {
     const hit = handle ? null : elementAt(page(), p, 3 / state.zoom);
     const hoverId = hit ? hit.id : null;
     if (hoverId !== state.hoverId) { state.hoverId = hoverId; render(); }
-    canvas.style.cursor = state.spaceDown ? "grab" : handle
+    canvas.style.cursor = state.spaceDown ? "grab" : state.drawMode ? "crosshair" : handle
       ? (handle.name === "rotate" ? "grab" : cursorFor(handle.name, selected()[0].rotation))
       : hit ? (hit.locked ? "default" : "move") : "default";
     return;
@@ -505,6 +570,12 @@ canvas.addEventListener("pointermove", (e) => {
     if (e.shiftKey) delta = Math.round(delta / 15) * 15;
     for (const update of rotateElements(it.starts, c, delta)) Object.assign(byId(update.id) || {}, update);
     render();
+  } else if (it.type === "draw") {
+    const last = it.points[it.points.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) * state.zoom >= 1.5) {
+      it.points.push(p);
+      render();
+    }
   } else if (it.type === "marquee") {
     const left = Math.min(it.origin.x, p.x), top = Math.min(it.origin.y, p.y);
     state.marquee = { left, top, width: Math.abs(p.x - it.origin.x), height: Math.abs(p.y - it.origin.y) };
@@ -517,6 +588,15 @@ canvas.addEventListener("pointermove", (e) => {
 function endInteraction() {
   const it = state.interaction;
   state.interaction = null;
+  if (it && it.type === "draw") {
+    const stroke = makeDrawing(it.points, state.drawMode.color, state.drawMode.width);
+    if (stroke) {
+      change(() => { page().elements.push(stroke); });  // one undo step per stroke
+    } else {
+      render();
+    }
+    return;
+  }
   state.guides = [];
   state.marquee = null;
   if (it && it.before && it.before !== snapshot()) {
@@ -1014,6 +1094,13 @@ function renderCtxbar() {
       sep(),
     );
     ctxKey += "|" + [t.header, t.stripe, t.align].join();
+  } else if (all((el) => el.type === "draw")) {
+    bar.append(
+      labelled("Trazo",
+        colorInput("Color del trazo", () => first.stroke.color, each((el, v) => { el.stroke.color = v; })),
+        numberInput("Grosor del trazo", 1, 200, () => first.stroke.width, each((el, v) => { el.stroke.width = v; }))),
+      sep(),
+    );
   } else if (all((el) => el.type !== "text" && el.type !== "table")) {
     const filled = sel.filter((el) => !(el.fill && (el.fill.image || el.fill.video)));
     if (filled.length) {
@@ -1112,6 +1199,160 @@ function setPanel(name, toggle = true) {
   setTimeout(resizeCanvas, 0);
 }
 
+// ---- Kit de marca (UI4): colores, fuentes y logo guardados para todos los diseños ----
+async function saveBrand(change) {
+  state.brand = await api.saveBrand({ ...state.brand, ...change });
+  renderPanel();
+}
+
+/** Un color de marca: a lo seleccionado (texto, relleno o trazo) o, sin selección, al fondo. */
+function applyBrandColor(color) {
+  const sel = selected().filter((el) => !el.locked);
+  change(() => {
+    if (!sel.length) { page().background.color = color; return; }
+    for (const el of sel) {
+      if (el.type === "text" || el.type === "table") el.color = color;
+      else if (el.type === "draw") el.stroke.color = color;
+      else if (el.fill && !el.fill.image && !el.fill.video) el.fill.color = color;
+    }
+  });
+}
+
+function applyBrandFont(family) {
+  const texts = selected().filter((el) => !el.locked && (el.type === "text" || el.type === "table"));
+  if (!texts.length) { toast("Selecciona un texto para usar la fuente."); return; }
+  change(() => texts.forEach((el) => { el.fontFamily = family; fitTextHeight(el); }));
+}
+
+function removable(child, label, onRemove) {
+  const wrap = document.createElement("span");
+  wrap.className = "brand-item";
+  const x = button("×", `Quitar ${label} del kit de marca`, onRemove);
+  x.classList.add("brand-remove");
+  wrap.append(child, x);
+  return wrap;
+}
+
+function renderBrandPanel(panel) {
+  const brand = state.brand;
+  const colors = block("Colores de marca");
+  const swatches = document.createElement("div");
+  swatches.className = "brand-swatches";
+  for (const color of brand.colores) {
+    const sw = button("", `Usar ${color} (en lo seleccionado, o en el fondo)`, () => applyBrandColor(color));
+    sw.className = "brand-swatch";
+    sw.style.background = color;
+    swatches.appendChild(removable(sw, color, () => saveBrand({ colores: brand.colores.filter((c) => c !== color) })));
+  }
+  const pick = document.createElement("input");
+  Object.assign(pick, { type: "color", value: "#6c3cf0" });
+  pick.setAttribute("aria-label", "Color para agregar");
+  const addRow = document.createElement("div");
+  addRow.className = "row";
+  addRow.append(pick, button("Agregar color", "Agregar el color al kit de marca", () => saveBrand({ colores: [...brand.colores, pick.value] })));
+  colors.append(swatches, addRow);
+
+  const fonts = block("Fuentes de marca");
+  for (const family of brand.fuentes) {
+    const f = button(family, `Usar ${family} en el texto seleccionado`, () => applyBrandFont(family));
+    f.style.fontFamily = family;
+    f.classList.add("brand-font");
+    fonts.appendChild(removable(f, family, () => saveBrand({ fuentes: brand.fuentes.filter((x) => x !== family) })));
+  }
+  const fontSelect = document.createElement("select");
+  fontSelect.setAttribute("aria-label", "Fuente para agregar");
+  for (const [value, text] of fontOptions()) fontSelect.add(new Option(text, value));
+  const fontRow = document.createElement("div");
+  fontRow.className = "row";
+  fontRow.append(fontSelect, button("Agregar", "Agregar la fuente al kit de marca", () => saveBrand({ fuentes: [...brand.fuentes, fontSelect.value] })));
+  fonts.appendChild(fontRow);
+
+  const logo = block("Logo");
+  const asset = brand.logo && state.assets.find((a) => a.id === brand.logo);
+  if (asset) {
+    const img = document.createElement("img");
+    img.src = asset.url;
+    img.alt = "";
+    logo.appendChild(tile(img, "Agregar el logo a la página", () => addElement(makeImage(asset, state.design))));
+    logo.appendChild(button("Quitar logo", "Quitar el logo del kit de marca", () => saveBrand({ logo: null })));
+  } else {
+    const images = state.assets.filter((a) => a.kind !== "video");
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = images.length ? "Elige una imagen subida como logo:" : "Sube tu logo en Subidos y elígelo aquí.";
+    logo.appendChild(note);
+    if (images.length) {
+      const choose = document.createElement("select");
+      choose.setAttribute("aria-label", "Imagen para el logo");
+      for (const a of images) choose.add(new Option(a.name || a.id, a.id));
+      const row = document.createElement("div");
+      row.className = "row";
+      row.append(choose, button("Usar como logo", "Guardar la imagen como logo de marca", () => saveBrand({ logo: choose.value })));
+      logo.appendChild(row);
+    }
+  }
+  panel.append(colors, fonts, logo);
+}
+
+// "Cambiar tamaño" (UI3): una copia del diseño en otro formato, con su contenido reubicado en
+// proporción (model.resizeDesign); el original no cambia.
+function resizeBlock() {
+  const b = block("Cambiar tamaño");
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = "Crea una copia en otro formato y la abre; el diseño original no cambia.";
+  const select = document.createElement("select");
+  select.setAttribute("aria-label", "Formato de la copia");
+  const custom = document.createElement("div");
+  custom.className = "row";
+  custom.setAttribute("role", "group");
+  custom.setAttribute("aria-label", "Tamaño personalizado");
+  const sizeInput = (label, value) => {
+    const input = document.createElement("input");
+    Object.assign(input, { type: "number", min: 40, max: 8000, value });
+    input.setAttribute("aria-label", label);
+    return input;
+  };
+  const w = sizeInput("Ancho en píxeles", state.design.width), h = sizeInput("Alto en píxeles", state.design.height);
+  custom.append(w, document.createTextNode("×"), h);
+  custom.hidden = true;
+  const go = button("Crear copia en este tamaño", "Crear una copia del diseño en el tamaño elegido", async () => {
+    const option = select.selectedOptions[0];
+    const width = option.value === "custom" ? Math.round(Number(w.value)) : Number(option.dataset.width);
+    const height = option.value === "custom" ? Math.round(Number(h.value)) : Number(option.dataset.height);
+    if (!(width >= 40 && width <= 8000 && height >= 40 && height <= 8000)) {
+      toast("El tamaño debe estar entre 40 y 8000 px.");
+      return;
+    }
+    await resizeToCopy(width, height, option.value === "custom" ? `${width}×${height}` : option.dataset.name);
+  });
+  go.classList.add("block");
+  select.addEventListener("change", () => { custom.hidden = select.value !== "custom"; });
+  b.append(note, select, custom, go);
+  api.formats().then((formats) => {
+    for (const f of formats) {
+      if (f.ancho === state.design.width && f.alto === state.design.height) continue;
+      const option = new Option(`${f.nombre} (${f.ancho}×${f.alto})`, f.id);
+      Object.assign(option.dataset, { width: f.ancho, height: f.alto, name: f.nombre });
+      select.add(option);
+    }
+    select.add(new Option("Tamaño personalizado…", "custom"));
+  }).catch((e) => toast(`No se pudieron leer los formatos: ${e.message}`));
+  return b;
+}
+
+async function resizeToCopy(width, height, label) {
+  saveNow();
+  await saving;
+  const created = await api.createDesign({ ancho: width, alto: height, titulo: `${state.design.title} (${label})`.slice(0, 120) });
+  const resized = resizeDesign(state.design, width, height);
+  const next = { ...resized, id: created.id, title: created.title, format: created.format, created: created.created };
+  for (const page of next.pages) page.elements.forEach(fitTextHeight);
+  const thumb = renderPage(next, next.pages[0], 360).toDataURL("image/png");
+  await api.saveDesign(next, thumb);
+  location.href = `/editor?id=${created.id}`;
+}
+
 function block(title) {
   const div = document.createElement("div");
   div.className = "block";
@@ -1161,6 +1402,7 @@ async function renderPanel() {
   const panel = document.createElement("div");
   const name = state.panel;
   if (name === "templates") {
+    panel.appendChild(resizeBlock());
     const b = block("Plantillas");
     const hint = document.createElement("p");
     hint.className = "muted small";
@@ -1192,6 +1434,7 @@ async function renderPanel() {
     tb.appendChild(sizes);
     panel.appendChild(tb);
     renderGraphicsBlock(panel);
+    panel.appendChild(drawBlock());
   } else if (name === "text") {
     const b = block("Texto");
     const presets = [
@@ -1294,6 +1537,10 @@ async function renderPanel() {
     }
     b.appendChild(grid);
     panel.appendChild(b);
+  } else if (name === "brand") {
+    if (!state.brand) state.brand = await api.brand();
+    if (state.panel !== "brand" || token !== panelToken) return;
+    renderBrandPanel(panel);
   } else if (name === "background") {
     const b = block("Color de fondo");
     const grid = document.createElement("div");
@@ -2081,6 +2328,7 @@ document.addEventListener("keydown", (e) => {
   }
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); run(saveNow); return; }
+  if (e.key === "Escape" && state.drawMode && !isTyping(e.target)) { e.preventDefault(); setDrawMode(false); return; }
   if (isTyping(e.target)) return;
   const k = e.key.toLowerCase();
   if (mod && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
@@ -2143,7 +2391,7 @@ function wire() {
   $("export").innerHTML = `${ICONS.download}<span>Descargar</span>`;
   const railIcons = {
     templates: "templates", elements: "elements", text: "text", photos: "photos", uploads: "uploads", background: "background",
-    ai: "ai", animate: "animate", layers: "layers",
+    ai: "ai", animate: "animate", layers: "layers", brand: "brand",
   };
   $("play").innerHTML = `${ICONS.play}<span>Reproducir</span>`;
   $("play").addEventListener("click", () => run(playDesign));
@@ -2201,6 +2449,8 @@ function wire() {
   resizeCanvas();
   fit();
   setPanel("templates", false);
+  // UI2: en un teléfono el panel es una hoja sobre el lienzo; se empieza viendo el diseño.
+  if (window.matchMedia("(max-width: 720px)").matches) setPanel("templates", true);
   renderPages();
   refresh();
   setStatus("Guardado");

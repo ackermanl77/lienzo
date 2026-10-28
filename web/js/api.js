@@ -67,6 +67,8 @@ export const api = {
       "X-Family": encodeURIComponent(family || "") },
   }),
   fontDelete: (familia) => request("DELETE", `/api/fuentes?familia=${encodeURIComponent(familia)}`),
+  brand: () => request("GET", "/api/marca"),
+  saveBrand: (brand) => request("PUT", "/api/marca", { json: brand }),
   aiStatus: () => request("GET", "/api/ia/estado"),
   aiSettings: (url, modelo) => request("PUT", "/api/ia/ajustes", { json: { url, modelo } }),
   aiWrite: (instruccion, idioma) => request("POST", "/api/ia/escribir", { json: { instruccion, idioma } }),
