@@ -1,2 +1,2 @@
-pillow>=11,<14
+pillow>=13.0.0,<14
 pywebview>=6.0,<7
