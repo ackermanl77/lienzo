@@ -117,12 +117,12 @@ administrador).
 
 ```powershell
 .venv\Scripts\python -m pytest -q          # modelo, plantillas, guardado, exportación, servidor
-node --test tests/js/model.test.mjs        # geometría, texto, guías e historial del editor
+node --test tests/js/*.test.mjs            # geometría, texto, guías, historial y guardado al cerrar
 .venv\Scripts\python -m ruff check app tests
 ```
 
-Última corrida (2026-10-22, Python 3.14): 55 pruebas de Python y 12 de
-JavaScript, todas pasan.
+Última corrida (2026-10-28, Python 3.14, Node 24): 59 pruebas de Python y 21
+de JavaScript, todas pasan.
 
 ## Estructura
 
@@ -148,6 +148,7 @@ web/
   js/player.js  reproducción a pantalla completa y grabación de video
   js/graphics.js galería de gráficos vectoriales
   js/editor.js  el editor
+  js/autosave.js guardado al cerrar la pestaña (fetch keepalive, hasta 60 KB)
   js/home.js, js/api.js, js/icons.js, img/icon.svg
 scripts/smoke_test.ps1  prueba el .exe empaquetado
 docs/EVIDENCIA.md  la evidencia pública de Canva y la de REA sobre Lienzo
