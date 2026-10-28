@@ -198,9 +198,11 @@ def test_the_brand_kit_is_cleaned_and_kept(server):
     body = {"colores": ["#FF0000", "#ff0000", "red", "#00ff00"], "fuentes": ["Arial", "Arial", "../x", "Mi Fuente 2"],
             "logo": "../../secret"}
     status, saved, _ = call(server, "PUT", "/api/marca", body)
-    assert status == 200 and saved == {"colores": ["#ff0000", "#00ff00"], "fuentes": ["Arial", "Mi Fuente 2"], "logo": None}
+    assert status == 200
+    assert saved == {"colores": ["#ff0000", "#00ff00"], "fuentes": ["Arial", "Mi Fuente 2"], "logo": None}
     assert call(server, "GET", "/api/marca")[1] == saved
-    status, saved, _ = call(server, "PUT", "/api/marca", {**saved, "logo": "0123456789abcdef", "colores": ["#123456"] * 1})
+    changed = {**saved, "logo": "0123456789abcdef", "colores": ["#123456"] * 1}
+    status, saved, _ = call(server, "PUT", "/api/marca", changed)
     assert saved["logo"] == "0123456789abcdef" and saved["colores"] == ["#123456"]
     many = call(server, "PUT", "/api/marca", {"colores": [f"#{i:06x}" for i in range(40)]})[1]
     assert len(many["colores"]) == 24

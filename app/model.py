@@ -234,7 +234,8 @@ def sanitize_element(raw: Any, width: int, height: int) -> Optional[Dict[str, An
         if len(el["points"]) < 2:
             return None
         stroke = raw.get("stroke") if isinstance(raw.get("stroke"), dict) else {}
-        el["stroke"] = {"color": _color(stroke.get("color"), "#1f2933"), "width": _num(stroke.get("width"), 6, 0.5, 200)}
+        el["stroke"] = {"color": _color(stroke.get("color"), "#1f2933"),
+                        "width": _num(stroke.get("width"), 6, 0.5, 200)}
     elif el["type"] == "graphic":
         el["name"] = raw["name"] if isinstance(raw.get("name"), str) and _GRAPHIC_RE.match(raw["name"]) else "star"
         el["fill"] = _fill(raw.get("fill"), "#6c3cf0")
