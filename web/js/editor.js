@@ -2,7 +2,8 @@
 // la selección, los tiradores y las guías. Cada cambio pasa por change() o
 // por un gesto (arrastrar, deslizar) que guarda un punto de deshacer y
 // programa el guardado automático.
-import { api, isDesktop, toast } from "./api.js";
+import { api, isDesktop, toast, token } from "./api.js";
+import { hasPendingSave, queuePagehideSave } from "./autosave.js";
 import { GRAPHICS } from "./graphics.js";
 import { ICONS } from "./icons.js";
 import {
@@ -104,9 +105,13 @@ function redo() {
 
 let saveTimer = null;
 let saving = Promise.resolve();
+let saveRevision = 0;
+let savedRevision = 0;
+let pendingSaveRequests = 0;
 function setStatus(text) { $("status").textContent = text; }
 
 function scheduleSave() {
+  saveRevision += 1;
   setStatus("Cambios sin guardar…");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, 600);
@@ -116,15 +121,22 @@ function saveNow() {
   clearTimeout(saveTimer);
   saveTimer = null;
   const design = clone(state.design);
+  const revision = saveRevision;
+  pendingSaveRequests += 1;
   saving = saving.then(async () => {
     setStatus("Guardando…");
     try {
       const thumb = renderPage(design, design.pages[0], 360).toDataURL("image/png");
       await api.saveDesign(design, thumb);
-      if (!saveTimer) setStatus("Guardado");
+      if (revision === saveRevision) {
+        savedRevision = revision;
+        if (!saveTimer && pendingSaveRequests === 1) setStatus("Guardado");
+      }
     } catch (e) {
       setStatus("Sin guardar");
       toast(`No se pudo guardar: ${e.message}`);
+    } finally {
+      pendingSaveRequests -= 1;
     }
   });
   return saving;
@@ -2155,12 +2167,16 @@ function wire() {
   $("title").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
   new ResizeObserver(resizeCanvas).observe(viewport);
   window.addEventListener("pagehide", () => {
-    if (!saveTimer) return;
-    const body = JSON.stringify({ diseno: state.design });
-    if (body.length < 60000) {
-      fetch(`/api/disenos/${state.design.id}`, { method: "PUT", keepalive: true, body,
-        headers: { "Content-Type": "application/json", "X-Lienzo-Token": (sessionStorage.getItem("lienzo-token") || "") } });
-    }
+    queuePagehideSave({
+      design: state.design,
+      pending: hasPendingSave({
+        timerPending: saveTimer !== null,
+        requestsPending: pendingSaveRequests,
+        revision: saveRevision,
+        savedRevision,
+      }),
+      accessToken: token(),
+    });
   });
 }
 

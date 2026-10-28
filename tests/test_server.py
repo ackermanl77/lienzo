@@ -85,6 +85,10 @@ def test_saving_duplicating_and_deleting_a_design(server):
     assert call(server, "PUT", f"/api/disenos/{d['id']}", {"diseno": other})[0] == 400
     copy = call(server, "POST", f"/api/disenos/{d['id']}/duplicar")[1]
     assert copy["title"] == "Logo nuevo (copia)"
+    d["title"] = "Cambio desde pagehide"
+    status, saved, _ = call(server, "PUT", f"/api/disenos/{d['id']}", {"diseno": d})
+    assert status == 200 and saved["title"] == "Cambio desde pagehide"
+    assert call(server, "GET", f"/thumbs/{d['id']}.png", token="")[0] == 200
     assert call(server, "DELETE", f"/api/disenos/{d['id']}")[0] == 200
     assert call(server, "GET", f"/api/disenos/{d['id']}")[0] == 404
     assert call(server, "DELETE", f"/api/disenos/{d['id']}")[0] == 404
