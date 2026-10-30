@@ -2,8 +2,12 @@
 fuentes, fotos de Openverse, IA local, quitar fondo, videos y rangos HTTP."""
 import io
 import json
+import email.message
+import ssl
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import HTTPError
+from urllib.request import OpenerDirector
 
 import pytest
 from conftest import png_bytes
@@ -139,6 +143,123 @@ def test_fetch_refuses_plain_http_and_private_addresses(url):
 def test_fetch_restricts_hosts():
     with pytest.raises(net.NetError, match="no permitido"):
         net.fetch("https://evil.example/x", 100, ("fonts.gstatic.com",))
+
+
+def test_fetch_pins_validated_address_and_keeps_tls_hostname(monkeypatch):
+    connected = []
+    wrapped = []
+
+    class FakeSocket:
+        def settimeout(self, value):
+            pass
+
+        def connect(self, address):
+            connected.append(address)
+
+        def close(self):
+            pass
+
+    class FakeContext:
+        def wrap_socket(self, sock, server_hostname):
+            wrapped.append(server_hostname)
+            return sock
+
+    monkeypatch.setattr(net.socket, "socket", lambda *args: FakeSocket())
+    info = (net.socket.AF_INET, net.socket.SOCK_STREAM, net.socket.IPPROTO_TCP, "", ("203.0.113.9", 443))
+    connection = net._PinnedHTTPSConnection(
+        "cdn.example", (info,), "cdn.example", timeout=1, context=FakeContext()
+    )
+    connection.connect()
+
+    assert connected == [("203.0.113.9", 443)]
+    assert wrapped == ["cdn.example"]
+    context = net._PinnedHTTPSHandler((info,), "cdn.example")._context
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+
+
+def test_fetch_pins_proxy_tunnel_ip_but_verifies_origin_hostname(monkeypatch):
+    proxy_connections = []
+    tunnel_targets = []
+    tls_names = []
+
+    class FakeSocket:
+        def close(self):
+            pass
+
+    class FakeContext:
+        def wrap_socket(self, sock, server_hostname):
+            tls_names.append(server_hostname)
+            return sock
+
+    info = (net.socket.AF_INET, net.socket.SOCK_STREAM, net.socket.IPPROTO_TCP, "", ("203.0.113.10", 443))
+    monkeypatch.setattr(net.socket, "create_connection", lambda address, *args: (proxy_connections.append(address) or FakeSocket()))
+    connection = net._PinnedHTTPSConnection(
+        "proxy.example", (info,), "cdn.example", timeout=1, context=FakeContext()
+    )
+    connection.set_tunnel("cdn.example", 443)
+    monkeypatch.setattr(connection, "_tunnel", lambda: tunnel_targets.append((connection._tunnel_host, connection._tunnel_port)))
+
+    connection.connect()
+
+    assert proxy_connections == [("proxy.example", 443)]
+    assert tunnel_targets == [("203.0.113.10", 443)]
+    assert tls_names == ["cdn.example"]
+
+
+def test_fetch_revalidates_each_redirect_before_opening(monkeypatch):
+    resolutions = []
+    opened = []
+
+    def resolve(host, port, proto):
+        resolutions.append((host, port))
+        ip = "8.8.8.8" if host == "open.example" else "1.1.1.1"
+        return [(net.socket.AF_INET, net.socket.SOCK_STREAM, net.socket.IPPROTO_TCP, "", (ip, port))]
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def read(self, limit):
+            return b"ok"
+
+    def open_request(_opener, request, timeout=None):
+        opened.append(request.full_url)
+        if len(opened) == 1:
+            headers = email.message.Message()
+            headers["Location"] = "https://cdn.example/next"
+            raise HTTPError(request.full_url, 302, "Found", headers, io.BytesIO())
+        return Response()
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(OpenerDirector, "open", open_request)
+
+    assert net.fetch("https://open.example/start", 10) == b"ok"
+    assert resolutions == [("open.example", 443), ("cdn.example", 443)]
+    assert opened == ["https://open.example/start", "https://cdn.example/next"]
+
+
+def test_fetch_rejects_private_redirect_before_second_request(monkeypatch):
+    opened = []
+
+    def resolve(host, port, proto):
+        ip = "8.8.8.8" if host == "open.example" else "127.0.0.1"
+        return [(net.socket.AF_INET, net.socket.SOCK_STREAM, net.socket.IPPROTO_TCP, "", (ip, port))]
+
+    def open_request(_opener, request, timeout=None):
+        opened.append(request.full_url)
+        headers = email.message.Message()
+        headers["Location"] = "https://local.example/private"
+        raise HTTPError(request.full_url, 302, "Found", headers, io.BytesIO())
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(OpenerDirector, "open", open_request)
+
+    with pytest.raises(net.NetError, match="red privada"):
+        net.fetch("https://open.example/start", 10)
+    assert opened == ["https://open.example/start"]
 
 
 # ---------------------------------------------------------------- Openverse

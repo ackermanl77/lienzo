@@ -3,7 +3,9 @@
 // por un gesto (arrastrar, deslizar) que guarda un punto de deshacer y
 // programa el guardado automático.
 import { api, isDesktop, toast, token } from "./api.js";
-import { hasPendingSave, queuePagehideSave } from "./autosave.js";
+import {
+  autosaveOutbox, hasPendingSave, queuePagehideSave, retryPendingSaves,
+} from "./autosave.js";
 import { GRAPHICS } from "./graphics.js";
 import { ICONS } from "./icons.js";
 import {
@@ -45,6 +47,7 @@ const state = {
   fonts: [], catalog: [], activeCell: null, stock: null, ai: null, busy: false, rulers: loadRulers(),
 };
 const history = new History(100);
+const autosaveClientId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const page = () => state.design.pages[state.pageIndex];
 const selected = () => page().elements.filter((el) => state.selection.includes(el.id));
@@ -117,11 +120,39 @@ let saving = Promise.resolve();
 let saveRevision = 0;
 let savedRevision = 0;
 let pendingSaveRequests = 0;
+let serverUpdated = 0;
+let outboxStage = 0;
+let outboxKey = "";
+let outboxWrite = Promise.resolve();
 function setStatus(text) { $("status").textContent = text; }
+
+function writeOutboxEntry(entry) {
+  const write = outboxWrite.catch(() => {}).then(() => autosaveOutbox.put(entry));
+  outboxWrite = write.catch(() => {});
+  return write;
+}
+
+function persistOutbox(design, revision, baseUpdated, key = outboxKey, stage = outboxStage) {
+  const entry = {
+    key, designId: design.id, clientId: autosaveClientId, stage, revision, baseUpdated,
+    queuedAt: Date.now(), design: clone(design),
+  };
+  return writeOutboxEntry(entry);
+}
+
+async function rebaseOutboxAfter(stage, updated) {
+  const entries = await autosaveOutbox.list(state.design.id);
+  for (const entry of entries) {
+    if (entry.clientId === autosaveClientId && entry.stage > stage) {
+      await writeOutboxEntry({ ...entry, baseUpdated: updated });
+    }
+  }
+}
 
 function scheduleSave() {
   saveRevision += 1;
   setStatus("Cambios sin guardar…");
+  persistOutbox(state.design, saveRevision, serverUpdated).catch(() => setStatus("Sin copia local…"));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, 600);
 }
@@ -131,19 +162,38 @@ function saveNow() {
   saveTimer = null;
   const design = clone(state.design);
   const revision = saveRevision;
+  const stage = outboxStage;
+  const key = outboxKey;
+  outboxStage += 1;
+  outboxKey = `${design.id}:${autosaveClientId}:${outboxStage}`;
   pendingSaveRequests += 1;
   saving = saving.then(async () => {
     setStatus("Guardando…");
     try {
+      const expectedUpdated = serverUpdated;
+      try {
+        await persistOutbox(design, revision, expectedUpdated, key, stage);
+      } catch {
+        setStatus("Sin copia local…");
+      }
       const thumb = renderPage(design, design.pages[0], 360).toDataURL("image/png");
-      await api.saveDesign(design, thumb);
+      const result = await api.saveDesign(design, thumb, expectedUpdated);
+      serverUpdated = result.updated;
+      try {
+        await rebaseOutboxAfter(stage, serverUpdated);
+        await autosaveOutbox.remove(key, revision);
+      } catch {
+        // El servidor ya confirmó; una entrada restante se resolverá como repetición idempotente.
+      }
       if (revision === saveRevision) {
         savedRevision = revision;
         if (!saveTimer && pendingSaveRequests === 1) setStatus("Guardado");
       }
     } catch (e) {
-      setStatus("Sin guardar");
-      toast(`No se pudo guardar: ${e.message}`);
+      setStatus(e.status === 409 ? "Conflicto al guardar" : "Sin guardar");
+      toast(e.status === 409
+        ? "El diseño cambió en otra pestaña. Tu copia local sigue pendiente."
+        : `No se pudo guardar: ${e.message}`);
     } finally {
       pendingSaveRequests -= 1;
     }
@@ -2600,16 +2650,21 @@ function wire() {
   $("title").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
   new ResizeObserver(resizeCanvas).observe(viewport);
   window.addEventListener("pagehide", () => {
-    queuePagehideSave({
-      design: state.design,
-      pending: hasPendingSave({
-        timerPending: saveTimer !== null,
-        requestsPending: pendingSaveRequests,
-        revision: saveRevision,
-        savedRevision,
-      }),
-      accessToken: token(),
+    const pending = hasPendingSave({
+      timerPending: saveTimer !== null,
+      requestsPending: pendingSaveRequests,
+      revision: saveRevision,
+      savedRevision,
     });
+    if (pending && state.design) {
+      persistOutbox(state.design, saveRevision, serverUpdated).catch(() => {});
+      queuePagehideSave({
+        design: state.design,
+        pending: true,
+        accessToken: token(),
+        expectedUpdated: serverUpdated,
+      });
+    }
   });
 }
 
@@ -2617,9 +2672,27 @@ function wire() {
   const id = new URLSearchParams(location.search).get("id");
   if (!id) { location.href = "/"; return; }
   wire();
+  let recovery = { design: null, updated: 0, conflicts: 0, failures: 0 };
   try {
     const [design, assets, fonts] = await Promise.all([api.design(id), api.assets(), api.fonts()]);
     state.design = design;
+    serverUpdated = design.updated;
+    outboxKey = `${id}:${autosaveClientId}:${outboxStage}`;
+    recovery.updated = design.updated;
+    try {
+      recovery = await retryPendingSaves({
+        entries: await autosaveOutbox.list(id),
+        updated: design.updated,
+        save: (draft, expectedUpdated) => api.saveDesign(draft, undefined, expectedUpdated),
+        remove: (key, revision) => autosaveOutbox.remove(key, revision),
+      });
+    } catch {
+      recovery.failures += 1;
+    }
+    if (recovery.design) {
+      state.design = { ...recovery.design, updated: recovery.updated };
+      serverUpdated = recovery.updated;
+    }
     state.assets = assets;
     state.fonts = fonts.instaladas;
     state.catalog = fonts.catalogo;
@@ -2638,7 +2711,9 @@ function wire() {
   if (window.matchMedia("(max-width: 720px)").matches) setPanel("templates", true);
   renderPages();
   refresh();
-  setStatus("Guardado");
+  setStatus(recovery.conflicts ? "Copia local en conflicto" : recovery.failures ? "Copia local pendiente" : "Guardado");
+  if (recovery.conflicts) toast("Hay cambios pendientes de otra pestaña. Tu copia permanece en este navegador.");
+  else if (recovery.failures) toast("Quedó una copia pendiente; Lienzo volverá a intentarlo al abrir este diseño.");
   await loadDesignImages(state.design);
   render();
   renderPages();

@@ -104,6 +104,27 @@ def test_rejected_design_update_does_not_change_saved_design(server):
     assert call(server, "GET", f"/api/disenos/{d['id']}")[1]["title"] == original_title
 
 
+def test_versioned_saves_are_idempotent_and_reject_stale_tabs(server):
+    design = call(server, "POST", "/api/disenos", {"formato": "logo"})[1]
+    original_version = design["updated"]
+    design["title"] = "Guardado desde pestaña A"
+    payload = {"diseno": design, "expected_updated": original_version}
+
+    status, saved, _ = call(server, "PUT", f"/api/disenos/{design['id']}", payload)
+    assert status == 200 and saved["updated"] > original_version
+
+    status, replayed, _ = call(server, "PUT", f"/api/disenos/{design['id']}", payload)
+    assert status == 200 and replayed["updated"] == saved["updated"]
+
+    other_tab = dict(design, title="Cambio desde pestaña B")
+    status, error, _ = call(server, "PUT", f"/api/disenos/{design['id']}",
+                            {"diseno": other_tab, "expected_updated": original_version})
+    assert status == 409 and "otra pestaña" in error["error"]
+    current = call(server, "GET", f"/api/disenos/{design['id']}")[1]
+    assert current["title"] == "Guardado desde pestaña A"
+    assert current["updated"] == saved["updated"]
+
+
 def test_uploading_and_serving_images(server):
     status, asset, _ = call(server, "POST", "/api/imagenes", raw=png_bytes((50, 40)),
                             headers={"X-Filename": "mi%20foto.png", "Content-Type": "application/octet-stream"})

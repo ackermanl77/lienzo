@@ -40,6 +40,10 @@ class StoreError(ValueError):
     """Un problema que el usuario puede corregir (el mensaje es para él)."""
 
 
+class SaveConflict(StoreError):
+    """El diseño cambió desde que el cliente lo abrió."""
+
+
 def _dir(name: str) -> str:
     path = os.path.join(paths.data_dir(), name)
     os.makedirs(path, exist_ok=True)
@@ -108,12 +112,23 @@ def load_design(design_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def save_design(raw: Any, thumbnail: Optional[str] = None) -> Dict[str, Any]:
+def save_design(raw: Any, thumbnail: Optional[str] = None,
+                expected_updated: Optional[float] = None) -> Dict[str, Any]:
     design = model.sanitize_design(raw)
     with _lock:
         old = load_design(design["id"])
         if old:
             design["created"] = old.get("created", design["created"])
+        if expected_updated is not None:
+            if old is None:
+                raise SaveConflict("El diseño cambió en otra pestaña o fue eliminado.")
+            if old.get("updated") != expected_updated:
+                current = {key: value for key, value in old.items() if key != "updated"}
+                candidate = {key: value for key, value in design.items() if key != "updated"}
+                if current == candidate:
+                    return old
+                raise SaveConflict("El diseño cambió en otra pestaña.")
+            design["updated"] = max(design["updated"], old["updated"] + 0.000001)
         design_path = _design_path(design["id"])
         thumbnail_path = thumb_path(design["id"])
         thumbnail_bytes = decode_png_data_url(thumbnail, MAX_THUMB_BYTES) if thumbnail else None

@@ -26,7 +26,9 @@ async function request(method, path, { json, body, headers = {}, raw = false } =
   const response = await fetch(path, options);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `Error ${response.status}`);
+    const error = new Error(data.error || `Error ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return raw ? response : response.json();
 }
@@ -37,7 +39,9 @@ export const api = {
   designs: () => request("GET", "/api/disenos"),
   createDesign: (data) => request("POST", "/api/disenos", { json: data }),
   design: (id) => request("GET", `/api/disenos/${id}`),
-  saveDesign: (design, thumbnail) => request("PUT", `/api/disenos/${design.id}`, { json: { diseno: design, miniatura: thumbnail } }),
+  saveDesign: (design, thumbnail, expectedUpdated) => request("PUT", `/api/disenos/${design.id}`, {
+    json: { diseno: design, miniatura: thumbnail, expected_updated: expectedUpdated },
+  }),
   deleteDesign: (id) => request("DELETE", `/api/disenos/${id}`),
   duplicateDesign: (id) => request("POST", `/api/disenos/${id}/duplicar`),
   assets: () => request("GET", "/api/imagenes"),

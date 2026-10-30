@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import mimetypes
 import os
 import re
@@ -136,7 +137,13 @@ def _put(req, m):
     design = body.get("diseno")
     if not isinstance(design, dict) or design.get("id") != m.group(1):
         raise ApiError(HTTPStatus.BAD_REQUEST, "Diseño inválido.")
-    saved = store.save_design(design, body.get("miniatura"))
+    expected_updated = None
+    if "expected_updated" in body:
+        expected_updated = body["expected_updated"]
+        if isinstance(expected_updated, bool) or not isinstance(expected_updated, (int, float)) \
+                or not math.isfinite(expected_updated):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Versión del diseño inválida.")
+    saved = store.save_design(design, body.get("miniatura"), expected_updated)
     return {"id": saved["id"], "updated": saved["updated"], "title": saved["title"]}
 
 
@@ -377,6 +384,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(HTTPStatus.METHOD_NOT_ALLOWED, "Método no permitido.")
         except ApiError as exc:
             self._error(exc.status, exc.message)
+        except store.SaveConflict as exc:
+            self._error(HTTPStatus.CONFLICT, str(exc))
         except (model.DesignError, store.StoreError, ai.AIError) as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
         except (BrokenPipeError, ConnectionResetError):
