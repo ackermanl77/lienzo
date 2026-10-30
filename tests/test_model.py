@@ -94,3 +94,16 @@ def test_a_freehand_drawing_is_kept_and_its_points_cleaned():
     assert model.sanitize_element({**raw, "points": [[0.5, 0.5]]}, 1080, 1080) is None
     many = model.sanitize_element({**raw, "points": [[0.1, 0.1]] * 5000}, 1080, 1080)
     assert len(many["points"]) == model.MAX_DRAW_POINTS
+
+
+def test_a_page_keeps_its_ruler_guides_inside_the_page():
+    """UI8: guides are saved with the page; bad ones are dropped and positions kept on the page."""
+    raw = {"elements": [], "guides": [
+        {"axis": "x", "pos": 120.5}, {"axis": "y", "pos": 9999}, {"axis": "z", "pos": 3}, "nope",
+        {"axis": "x", "pos": "1"},
+    ]}
+    page = model.sanitize_page(raw, 1080, 1080)
+    assert page["guides"] == [{"axis": "x", "pos": 120.5}, {"axis": "y", "pos": 1080.0}, {"axis": "x", "pos": 0.0}]
+    assert "guides" not in model.sanitize_page({"elements": []}, 1080, 1080)
+    many = model.sanitize_page({"guides": [{"axis": "x", "pos": 1}] * 80}, 1080, 1080)
+    assert len(many["guides"]) == model.MAX_GUIDES

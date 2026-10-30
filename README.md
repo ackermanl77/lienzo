@@ -18,6 +18,10 @@ diseños que Canva documenta públicamente (ver
   - Seleccionar (también varios con Mayús o arrastrando un recuadro), mover,
     cambiar tamaño y girar con tiradores. Hay guías inteligentes contra los
     bordes y centros de la página y de otros elementos (Alt las desactiva).
+  - Reglas (Mayús+R): arrastra desde la de arriba o la de la izquierda para
+    crear una guía; los elementos se ajustan a ella al moverlos. Las guías se
+    guardan con la página y no salen al descargar; suelta una sobre la regla
+    para quitarla.
   - Texto: fuente, tamaño, color, negrita/cursiva/subrayado, alineación e
     interlineado. Se escribe con doble clic sobre el lienzo.
   - Formas e imágenes: color, borde, esquinas redondeadas y opacidad.
@@ -83,7 +87,7 @@ py -3.14 -m venv .venv
 Atajos: Ctrl+Z / Ctrl+Shift+Z, Ctrl+C / Ctrl+V / Ctrl+X, Ctrl+D (duplicar),
 Supr (eliminar), flechas (mover 1 px, con Mayús 10 px), Ctrl+A,
 Ctrl+B / I / U, Ctrl+] / Ctrl+[ (orden), Ctrl+0 (ajustar), Ctrl+S (guardar),
-Enter (editar el texto seleccionado), Esc.
+Enter (editar el texto seleccionado), Mayús+R (reglas), Esc.
 
 **Marca** (pestaña de la barra lateral): el kit de marca, guardado para todos
 los diseños. Un color de marca se aplica a lo seleccionado (texto, relleno o

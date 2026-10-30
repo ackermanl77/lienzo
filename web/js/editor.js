@@ -7,9 +7,9 @@ import { hasPendingSave, queuePagehideSave } from "./autosave.js";
 import { GRAPHICS } from "./graphics.js";
 import { ICONS } from "./icons.js";
 import {
-  ANIMATIONS, FONTS, History, PAGE_DURATION, PALETTE, SHAPES, bounds, cellAt, center, clone, corners, describe,
+  ANIMATIONS, FONTS, History, PAGE_DURATION, PALETTE, SHAPES, SHORTCUTS, bounds, cellAt, center, clone, corners, describe,
   duplicateElement, elementAt, expandGroups, fontString, intersects, makeGraphic, makeImage, makeShape, makeTable,
-  makeDrawing, makeText, makeVideo, newId, newPage, resizeBox, resizeDesign, rotate, rotateElements, rotationFromPointer, scaleElements, snap,
+  guideAt, makeDrawing, makeText, makeVideo, matchesSearch, newId, newPage, resizeBox, resizeDesign, rotate, rotateElements, rotationFromPointer, rulerStep, scaleElements, snap,
   tableInsertCol, tableInsertRow, tableRemoveCol, tableRemoveRow, toLocal, unionBounds,
 } from "./model.js";
 import { present, recordVideo, videoFormat } from "./player.js";
@@ -27,13 +27,22 @@ const COLORS = {
   stage: css.getPropertyValue("--stage").trim() || "#e8e6f1",
   select: css.getPropertyValue("--select").trim() || "#6c3cf0",
   guide: css.getPropertyValue("--guide").trim() || "#ff2f92",
+  ruleGuide: css.getPropertyValue("--rule-guide").trim() || "#00a3ff",
+  ruler: css.getPropertyValue("--ruler").trim() || "#f7f6fb",
+  rulerText: css.getPropertyValue("--ruler-text").trim() || "#6b6880",
 };
+
+// Reglas y guías (UI8): las reglas (Mayús+R, recordadas en este navegador) ocupan RULER px
+// arriba y a la izquierda; de ellas se arrastran guías, que se guardan con la página.
+const RULER = 20;
+const RULERS_KEY = "lienzo.rulers";
+const loadRulers = () => { try { return localStorage.getItem(RULERS_KEY) === "1"; } catch { return false; } };
 
 const state = {
   design: null, pageIndex: 0, selection: [], zoom: 1, offset: { x: 0, y: 0 }, dpr: window.devicePixelRatio || 1,
   panel: "templates", interaction: null, hoverId: null, guides: [], marquee: null, editingId: null,
   clipboard: null, assets: [], templates: null, pending: null, spaceDown: false, drawMode: null,
-  fonts: [], catalog: [], activeCell: null, stock: null, ai: null, busy: false,
+  fonts: [], catalog: [], activeCell: null, stock: null, ai: null, busy: false, rulers: loadRulers(),
 };
 const history = new History(100);
 
@@ -403,8 +412,20 @@ function drawOverlay() {
     ctx.font = "13px Segoe UI";
     ctx.fillText("🔒", p.x + 4, p.y - 4);
   }
-  ctx.strokeStyle = COLORS.guide;
+  ctx.strokeStyle = COLORS.ruleGuide;
   ctx.lineWidth = 1;
+  for (const g of page().guides || []) {
+    ctx.beginPath();
+    if (g.axis === "x") {
+      const x = Math.round(toScreen({ x: g.pos, y: 0 }).x) + 0.5;
+      ctx.moveTo(x, 0); ctx.lineTo(x, viewport.clientHeight);
+    } else {
+      const y = Math.round(toScreen({ x: 0, y: g.pos }).y) + 0.5;
+      ctx.moveTo(0, y); ctx.lineTo(viewport.clientWidth, y);
+    }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = COLORS.guide;
   for (const g of state.guides) {
     ctx.beginPath();
     if (g.axis === "x") {
@@ -424,6 +445,60 @@ function drawOverlay() {
     ctx.strokeStyle = COLORS.select;
     ctx.strokeRect(a.x, a.y, m.width * state.zoom, m.height * state.zoom);
   }
+  if (state.rulers) drawRulers();
+}
+
+/** Las reglas, en píxeles del diseño (0 = borde de la página), con números cada rulerStep(). */
+function drawRulers() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  const step = rulerStep(state.zoom), minor = step / 5;
+  ctx.fillStyle = COLORS.ruler;
+  ctx.fillRect(0, 0, w, RULER);
+  ctx.fillRect(0, 0, RULER, h);
+  ctx.strokeStyle = COLORS.rulerText;
+  ctx.fillStyle = COLORS.rulerText;
+  ctx.font = "10px Segoe UI, sans-serif";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const isMajor = (v) => Math.abs(v / step - Math.round(v / step)) < 1e-6;
+  const startX = Math.floor(toWorldXY(RULER, 0).x / minor) * minor, endX = toWorldXY(w, 0).x;
+  for (let v = startX; v <= endX; v += minor) {
+    const x = Math.round(toScreen({ x: v, y: 0 }).x) + 0.5;
+    if (x < RULER) continue;
+    ctx.moveTo(x, RULER); ctx.lineTo(x, isMajor(v) ? 4 : RULER - 5);
+    if (isMajor(v)) ctx.fillText(String(Math.round(v)), x + 3, 10);
+  }
+  const startY = Math.floor(toWorldXY(0, RULER).y / minor) * minor, endY = toWorldXY(0, h).y;
+  for (let v = startY; v <= endY; v += minor) {
+    const y = Math.round(toScreen({ x: 0, y: v }).y) + 0.5;
+    if (y < RULER) continue;
+    ctx.moveTo(RULER, y); ctx.lineTo(isMajor(v) ? 4 : RULER - 5, y);
+    if (isMajor(v)) {
+      ctx.save();
+      ctx.translate(10, y - 3);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(String(Math.round(v)), 0, 0);
+      ctx.restore();
+    }
+  }
+  ctx.moveTo(0, RULER + 0.5); ctx.lineTo(w, RULER + 0.5);
+  ctx.moveTo(RULER + 0.5, 0); ctx.lineTo(RULER + 0.5, h);
+  ctx.stroke();
+  ctx.fillStyle = COLORS.ruler;
+  ctx.fillRect(0, 0, RULER, RULER);
+}
+
+function toggleRulers() {
+  state.rulers = !state.rulers;
+  try { localStorage.setItem(RULERS_KEY, state.rulers ? "1" : "0"); } catch { /* sin almacenamiento: no se recuerda */ }
+  toast(state.rulers ? "Reglas visibles: arrastra desde una para crear una guía" : "Reglas ocultas");
+  render();
+}
+
+/** La guía bajo el puntero, solo con las reglas visibles (así no estorba al mover elementos). */
+function ruleGuideAt(screen) {
+  if (!state.rulers) return -1;
+  return guideAt(page().guides, toWorldXY(screen.x, screen.y), 4 / state.zoom);
 }
 
 // =====================================================================
@@ -456,6 +531,24 @@ canvas.addEventListener("pointerdown", (e) => {
   if (state.drawMode) {
     state.interaction = { type: "draw", points: [p] };
     canvas.setPointerCapture(e.pointerId);
+    return;
+  }
+  // Reglas (UI8): arrastrar desde una crea una guía; arrastrar una guía la mueve.
+  const onRuler = state.rulers && (screen.x < RULER) !== (screen.y < RULER);
+  const guideIndex = onRuler ? -1 : ruleGuideAt(screen);
+  if (onRuler || guideIndex >= 0) {
+    const before = snapshot();
+    const guides = page().guides || (page().guides = []);
+    let index = guideIndex;
+    if (onRuler) {
+      // de la regla de arriba sale una guía horizontal; de la izquierda, una vertical
+      const axis = screen.y < RULER ? "y" : "x";
+      guides.push({ axis, pos: Math.round(axis === "x" ? p.x : p.y) });
+      index = guides.length - 1;
+    }
+    state.interaction = { type: "guide", index, before, overRuler: onRuler };
+    canvas.setPointerCapture(e.pointerId);
+    render();
     return;
   }
   const handle = handleAt(screen);
@@ -501,6 +594,11 @@ canvas.addEventListener("pointermove", (e) => {
   const p = toWorldXY(screen.x, screen.y);
   const it = state.interaction;
   if (!it) {
+    const overGuide = ruleGuideAt(screen);
+    if (overGuide >= 0) {
+      canvas.style.cursor = page().guides[overGuide].axis === "x" ? "ew-resize" : "ns-resize";
+      return;
+    }
     const handle = handleAt(screen);
     const hit = handle ? null : elementAt(page(), p, 3 / state.zoom);
     const hoverId = hit ? hit.id : null;
@@ -527,7 +625,7 @@ canvas.addEventListener("pointermove", (e) => {
     if (!e.altKey) {
       const ids = new Set(movable.map((s) => s.id));
       const targets = page().elements.filter((el) => !ids.has(el.id)).map(bounds);
-      const result = snap(unionBounds(movable.map((s) => byId(s.id))), targets, state.design, 6 / state.zoom);
+      const result = snap(unionBounds(movable.map((s) => byId(s.id))), targets, state.design, 6 / state.zoom, page().guides);
       movable.forEach((s) => { const el = byId(s.id); el.left += result.dx; el.top += result.dy; });
       state.guides = result.guides;
     }
@@ -576,6 +674,12 @@ canvas.addEventListener("pointermove", (e) => {
       it.points.push(p);
       render();
     }
+  } else if (it.type === "guide") {
+    const g = page().guides[it.index];
+    g.pos = Math.round(g.axis === "x" ? p.x : p.y);
+    it.overRuler = g.axis === "x" ? screen.x < RULER : screen.y < RULER;
+    canvas.style.cursor = it.overRuler ? "no-drop" : g.axis === "x" ? "ew-resize" : "ns-resize";
+    render();
   } else if (it.type === "marquee") {
     const left = Math.min(it.origin.x, p.x), top = Math.min(it.origin.y, p.y);
     state.marquee = { left, top, width: Math.abs(p.x - it.origin.x), height: Math.abs(p.y - it.origin.y) };
@@ -588,6 +692,14 @@ canvas.addEventListener("pointermove", (e) => {
 function endInteraction() {
   const it = state.interaction;
   state.interaction = null;
+  if (it && it.type === "guide") {
+    const guides = page().guides;
+    const g = guides[it.index];
+    const limit = g.axis === "x" ? state.design.width : state.design.height;
+    // soltada sobre la regla o fuera de la página: se quita
+    if (it.overRuler || g.pos < 0 || g.pos > limit) guides.splice(it.index, 1);
+    if (!guides.length) delete page().guides;
+  }
   if (it && it.type === "draw") {
     const stroke = makeDrawing(it.points, state.drawMode.color, state.drawMode.width);
     if (stroke) {
@@ -1402,22 +1514,53 @@ async function renderPanel() {
   const panel = document.createElement("div");
   const name = state.panel;
   if (name === "templates") {
-    panel.appendChild(resizeBlock());
     const b = block("Plantillas");
     const hint = document.createElement("p");
     hint.className = "muted small";
     hint.textContent = "Si la página actual está vacía la plantilla se aplica ahí; si no, se agrega como página nueva.";
-    b.appendChild(hint);
+    // Buscar y filtrar por categoría (UI5), como el buscador de Gráficos y Fotos.
+    const search = document.createElement("input");
+    Object.assign(search, { type: "search", id: "template-search", placeholder: "Buscar plantillas (oferta, menú, boda…)" });
+    search.setAttribute("aria-label", "Buscar plantillas");
+    const category = document.createElement("select");
+    category.id = "template-category";
+    category.setAttribute("aria-label", "Categoría de plantillas");
+    category.add(new Option("Todas las categorías", ""));
     const grid = document.createElement("div");
     grid.className = "grid2";
-    b.appendChild(grid);
+    const none = document.createElement("p");
+    none.className = "muted small";
+    none.textContent = "Ninguna plantilla coincide.";
+    none.hidden = true;
+    b.append(hint, search, category, grid, none);
     panel.appendChild(b);
+    // Cambiar tamaño, debajo de las plantillas (UI7); el tamaño de la barra superior lo abre.
+    const resize = resizeBlock();
+    panel.appendChild(resize);
+    if (state.focusResize) {
+      state.focusResize = false;
+      requestAnimationFrame(() => { resize.scrollIntoView({ block: "start" }); resize.querySelector("select").focus(); });
+    }
     if (!state.templates) state.templates = await api.templates(state.design.width, state.design.height);
     if (state.panel !== "templates") return;
+    const tiles = [];
     for (const t of state.templates) {
       t.pagina.elements.forEach(fitTextHeight);
-      grid.appendChild(tile(renderPage(state.design, t.pagina, 130), t.nombre, () => applyTemplate(t)));
+      const item = tile(renderPage(state.design, t.pagina, 130), t.nombre, () => applyTemplate(t));
+      tiles.push([item, t]);
+      grid.appendChild(item);
     }
+    for (const cat of [...new Set(state.templates.map((t) => t.categoria).filter(Boolean))].sort()) category.add(new Option(cat, cat));
+    const filter = () => {
+      let shown = 0;
+      for (const [item, t] of tiles) {
+        item.hidden = !(matchesSearch(search.value, t.nombre, t.categoria) && (!category.value || t.categoria === category.value));
+        if (!item.hidden) shown++;
+      }
+      none.hidden = shown > 0;
+    };
+    search.addEventListener("input", filter);
+    category.addEventListener("change", filter);
   } else if (name === "elements") {
     const b = block("Formas y líneas");
     const grid = document.createElement("div");
@@ -2318,6 +2461,44 @@ const safeName = (title) => title.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "").tri
 // =====================================================================
 // teclado
 // =====================================================================
+// El panel de atajos (UI6): ? o Ctrl+/ o el botón "?" de la barra superior.
+function shortcutsDialog() {
+  if (document.querySelector(".modal-back.shortcuts")) return;
+  const back = document.createElement("div");
+  back.className = "modal-back shortcuts";
+  const box = document.createElement("div");
+  box.className = "modal wide";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-labelledby", "shortcuts-title");
+  const h = document.createElement("h2");
+  h.id = "shortcuts-title";
+  h.textContent = "Atajos de teclado";
+  const table = document.createElement("table");
+  table.className = "shortcuts";
+  for (const [keys, action] of SHORTCUTS) {
+    const row = table.insertRow();
+    const k = row.insertCell();
+    for (const [i, part] of keys.split(" / ").entries()) {
+      if (i) k.append(" / ");
+      const kbd = document.createElement("kbd");
+      kbd.textContent = part;
+      k.append(kbd);
+    }
+    row.insertCell().textContent = action;
+  }
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const close = button("Cerrar", "Cerrar los atajos", () => back.remove());
+  close.classList.add("primary");
+  actions.append(close);
+  box.append(h, table, actions);
+  back.append(box);
+  back.addEventListener("click", (e) => { if (e.target === back) back.remove(); });
+  back.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); back.remove(); } });
+  document.body.append(back);
+  close.focus();
+}
 const isTyping = (target) => target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
 
 document.addEventListener("keydown", (e) => {
@@ -2328,6 +2509,7 @@ document.addEventListener("keydown", (e) => {
   }
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); run(saveNow); return; }
+  if ((mod && e.key === "/") || (e.key === "?" && !isTyping(e.target))) { e.preventDefault(); shortcutsDialog(); return; }
   if (e.key === "Escape" && state.drawMode && !isTyping(e.target)) { e.preventDefault(); setDrawMode(false); return; }
   if (isTyping(e.target)) return;
   const k = e.key.toLowerCase();
@@ -2349,6 +2531,7 @@ document.addEventListener("keydown", (e) => {
   else if (mod && k === "0") { e.preventDefault(); fit(); }
   else if (mod && k === "]") { e.preventDefault(); arrange(e.altKey ? "front" : "forward"); }
   else if (mod && k === "[") { e.preventDefault(); arrange(e.altKey ? "back" : "backward"); }
+  else if (!mod && e.shiftKey && k === "r") { e.preventDefault(); toggleRulers(); }
   else if (k === "delete" || k === "backspace") { e.preventDefault(); deleteSelection(); }
   else if (k === "escape") { closeMenus(); state.selection = []; refresh(); }
   else if (k === "enter" && selected().length === 1 && selected()[0].type === "text") { e.preventDefault(); startTextEdit(selected()[0]); }
@@ -2409,6 +2592,8 @@ function wire() {
     location.href = "/";
   }));
   $("export").addEventListener("click", exportDialog);
+  $("shortcuts").addEventListener("click", shortcutsDialog);
+  $("size").addEventListener("click", () => { state.focusResize = true; setPanel("templates", false); });
   $("fit").addEventListener("click", fit);
   $("zoom").addEventListener("input", (e) => setZoom(Number(e.target.value) / 100));
   $("title").addEventListener("change", (e) => change(() => { state.design.title = e.target.value.trim() || "Diseño sin título"; }));

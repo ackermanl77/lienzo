@@ -141,14 +141,16 @@ export function rotationFromPointer(el, point, free = false) {
 
 /**
  * Guías inteligentes: mueve `box` (caja alineada) para que su borde o centro
- * coincida con la página u otras cajas si está a menos de `threshold`.
+ * coincida con la página, otras cajas o las guías de la regla (`lines`:
+ * [{axis: "x"|"y", pos}], UI8) si está a menos de `threshold`.
  */
-export function snap(box, targets, page, threshold) {
+export function snap(box, targets, page, threshold, lines = []) {
   const xs = [0, page.width / 2, page.width], ys = [0, page.height / 2, page.height];
   for (const t of targets) {
     xs.push(t.left, t.left + t.width / 2, t.left + t.width);
     ys.push(t.top, t.top + t.height / 2, t.top + t.height);
   }
+  for (const line of lines) (line.axis === "x" ? xs : ys).push(line.pos);
   const best = (edges, lines) => {
     let found = null;
     for (const edge of edges) {
@@ -165,6 +167,24 @@ export function snap(box, targets, page, threshold) {
   if (bx) guides.push({ axis: "x", pos: bx.line });
   if (by) guides.push({ axis: "y", pos: by.line });
   return { dx: bx ? bx.diff : 0, dy: by ? by.diff : 0, guides };
+}
+
+// ---------------- reglas (UI8) ----------------
+const RULER_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+
+/** Cada cuántos px del diseño va un número en la regla: el menor paso que deja `minGap` px de pantalla. */
+export function rulerStep(zoom, minGap = 50) {
+  return RULER_STEPS.find((step) => step * zoom >= minGap) || RULER_STEPS[RULER_STEPS.length - 1];
+}
+
+/** La guía de `guides` a menos de `tolerance` (unidades del diseño) del punto, o -1. */
+export function guideAt(guides, point, tolerance) {
+  let best = -1, bestDist = tolerance;
+  (guides || []).forEach((g, i) => {
+    const dist = Math.abs((g.axis === "x" ? point.x : point.y) - g.pos);
+    if (dist <= bestDist) { best = i; bestDist = dist; }
+  });
+  return best;
 }
 
 // ---------------- texto ----------------
@@ -544,3 +564,45 @@ export function rotateElements(starts, origin, delta) {
     return { id: st.id, left: c.x - st.width / 2, top: c.y - st.height / 2, rotation: Math.round(rotation * 10) / 10 };
   });
 }
+
+// =====================================================================
+// búsqueda, orden y atajos (UI5, UI6, UI9)
+// =====================================================================
+const fold = (text) => String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** ¿Contiene alguno de `fields` todas las palabras de `query`? Sin distinguir mayúsculas ni tildes. */
+export function matchesSearch(query, ...fields) {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const haystack = fields.map(fold).join(" ");
+  return words.every((word) => haystack.includes(word));
+}
+
+/** Los diseños de Inicio en el orden elegido: "recent" (último cambio primero) o "name" (A-Z). */
+export function sortDesigns(items, order) {
+  const copy = [...items];
+  if (order === "name") copy.sort((a, b) => fold(a.title).localeCompare(fold(b.title), "es"));
+  else copy.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  return copy;
+}
+
+/** Los atajos del editor, para el panel de atajos (? o Ctrl+/). Mantener al día con el
+ * manejador de teclado de editor.js. */
+export const SHORTCUTS = [
+  ["Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y", "Deshacer / rehacer / rehacer"],
+  ["Ctrl+S", "Guardar ahora"],
+  ["Ctrl+C / Ctrl+X / Ctrl+V", "Copiar / cortar / pegar"],
+  ["Ctrl+D", "Duplicar la selección"],
+  ["Ctrl+A", "Seleccionar todo en la página"],
+  ["Ctrl+G / Ctrl+Shift+G", "Agrupar / desagrupar"],
+  ["Ctrl+B / Ctrl+I / Ctrl+U", "Negrita / cursiva / subrayado del texto seleccionado"],
+  ["Ctrl+] / Ctrl+[", "Subir / bajar una capa (con Alt: al frente / al fondo)"],
+  ["Ctrl++ / Ctrl+- / Ctrl+0", "Acercar / alejar / ajustar a la ventana"],
+  ["Ctrl+rueda", "Zoom"],
+  ["Espacio + arrastrar", "Mover la vista"],
+  ["Flechas", "Mover la selección 1 px (con Mayús: 10 px)"],
+  ["Enter", "Editar el texto o la celda seleccionados"],
+  ["Supr / Retroceso", "Eliminar la selección"],
+  ["Esc", "Quitar la selección, cerrar menús y salir del dibujo"],
+  ["Mayús+R", "Reglas: arrastra desde una para crear una guía; suéltala sobre la regla para quitarla"],
+  ["? o Ctrl+/", "Mostrar estos atajos"],
+];

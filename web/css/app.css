@@ -239,3 +239,17 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   .bottombar .pages { flex: 1; min-width: 0; overflow-x: auto; }
   .zoom input, .zoom output { display: none; }
 }
+
+/* Plantillas: búsqueda (UI5) -- una tile filtrada se oculta aunque .tile fije su display. */
+.tile[hidden] { display: none; }
+
+/* Atajos de teclado (UI6). */
+.modal.wide { width: min(620px, 94vw); max-height: 86vh; overflow: auto; }
+table.shortcuts { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.shortcuts td { padding: 6px 4px; border-top: 1px solid var(--border); vertical-align: top; }
+table.shortcuts td:first-child { white-space: nowrap; padding-right: 14px; }
+kbd { font: 12px ui-monospace, Consolas, monospace; background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+
+/* Inicio: buscar y ordenar los diseños (UI9). */
+.design-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.design-tools input { flex: 1 1 220px; min-width: 0; }

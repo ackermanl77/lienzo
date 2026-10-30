@@ -1,6 +1,7 @@
 // Inicio: formatos, plantillas y la lista de diseños guardados.
 import { api, toast } from "./api.js";
 import { ICONS } from "./icons.js";
+import { matchesSearch, sortDesigns } from "./model.js";
 import { fitTextHeight, renderPage } from "./render.js";
 
 const $ = (id) => document.getElementById(id);
@@ -96,17 +97,37 @@ function designCard(item) {
   return card;
 }
 
+let designs = [];
+
 async function loadDesigns() {
-  const items = await api.designs();
+  designs = await api.designs();
+  $("count").textContent = designs.length ? `${designs.length} diseño${designs.length === 1 ? "" : "s"}` : "";
+  $("design-tools").hidden = designs.length < 2;
+  showDesigns();
+}
+
+// Buscar por nombre y ordenar (UI9); el orden elegido se recuerda en este navegador.
+function showDesigns() {
   const box = $("designs");
   box.innerHTML = "";
-  $("count").textContent = items.length ? `${items.length} diseño${items.length === 1 ? "" : "s"}` : "";
-  if (!items.length) {
+  if (!designs.length) {
     box.innerHTML = '<div class="empty">Todavía no tienes diseños. Elige un formato o una plantilla para empezar.</div>';
     return;
   }
-  items.forEach((item) => box.appendChild(designCard(item)));
+  const shown = sortDesigns(designs, $("design-sort").value).filter((item) => matchesSearch($("design-search").value, item.title));
+  if (!shown.length) {
+    box.innerHTML = '<div class="empty">Ningún diseño se llama así.</div>';
+    return;
+  }
+  shown.forEach((item) => box.appendChild(designCard(item)));
 }
+
+try { $("design-sort").value = localStorage.getItem("lienzo-design-sort") || "recent"; } catch (_) { /* sin almacenamiento */ }
+$("design-search").addEventListener("input", showDesigns);
+$("design-sort").addEventListener("change", () => {
+  try { localStorage.setItem("lienzo-design-sort", $("design-sort").value); } catch (_) { /* sin almacenamiento */ }
+  showDesigns();
+});
 
 $("custom").addEventListener("submit", (e) => {
   e.preventDefault();

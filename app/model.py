@@ -271,8 +271,26 @@ def sanitize_page(raw: Any, width: int, height: int) -> Dict[str, Any]:
         seen.add(el["id"])
         elements.append(el)
     page_id = raw.get("id") if isinstance(raw.get("id"), str) and _ID_RE.match(raw["id"]) else new_id(8)
-    return {"id": page_id, "background": page_bg, "elements": elements,
+    page = {"id": page_id, "background": page_bg, "elements": elements,
             "duration": _num(raw.get("duration"), PAGE_DURATION, 0.5, 120)}
+    guides = _guides(raw.get("guides"), width, height)
+    if guides:
+        page["guides"] = guides
+    return page
+
+
+MAX_GUIDES = 50
+
+
+def _guides(raw: Any, width: int, height: int) -> List[Dict[str, Any]]:
+    """Las guías de la regla (UI8): [{"axis": "x"|"y", "pos": px}], dentro de la página."""
+    guides: List[Dict[str, Any]] = []
+    for item in raw[:MAX_GUIDES] if isinstance(raw, list) else []:
+        if not isinstance(item, dict) or item.get("axis") not in ("x", "y"):
+            continue
+        limit = width if item["axis"] == "x" else height
+        guides.append({"axis": item["axis"], "pos": _num(item.get("pos"), 0, 0, limit)})
+    return guides
 
 
 def sanitize_design(raw: Any) -> Dict[str, Any]:

@@ -34,6 +34,13 @@
     <div id="templates" class="cards"></div>
 
     <div class="section-title"><h2>Tus diseños</h2><span id="count" class="muted small"></span></div>
+    <div class="design-tools" id="design-tools" hidden>
+      <input id="design-search" type="search" placeholder="Buscar por nombre" aria-label="Buscar diseños por nombre">
+      <select id="design-sort" aria-label="Ordenar diseños">
+        <option value="recent">Más recientes primero</option>
+        <option value="name">Por nombre (A-Z)</option>
+      </select>
+    </div>
     <div id="designs" class="cards"></div>
   </main>
   <script type="module" src="/js/home.js"></script>

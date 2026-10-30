@@ -210,3 +210,52 @@ test("a freehand stroke becomes a draw element whose points are fractions of its
   const long = Array.from({ length: 5000 }, (_, i) => ({ x: i, y: Math.sin(i / 50) * 100 }));
   assert.ok(makeDrawing(long, "#000000", 2).points.length <= MAX_DRAW_POINTS + 1);
 });
+
+test("search ignores case and accents and needs every word (UI5, UI9)", async () => {
+  const { matchesSearch } = await import("../../web/js/model.js");
+  assert.ok(matchesSearch("menu dia", "Menú del día", "Restaurantes"));
+  assert.ok(matchesSearch("  ", "cualquier cosa"));
+  assert.ok(matchesSearch("REST", "Menú del día", "Restaurantes"));
+  assert.ok(!matchesSearch("menu boda", "Menú del día", "Restaurantes"));
+});
+
+test("designs sort by last change or by name (UI9)", async () => {
+  const { sortDesigns } = await import("../../web/js/model.js");
+  const items = [{ title: "Óvalo", updated: 1 }, { title: "afiche", updated: 3 }, { title: "Boda", updated: 2 }];
+  assert.deepEqual(sortDesigns(items, "recent").map((d) => d.title), ["afiche", "Boda", "Óvalo"]);
+  items[1].updated = 0;
+  assert.deepEqual(sortDesigns(items, "recent").map((d) => d.title), ["Boda", "Óvalo", "afiche"]);
+  assert.deepEqual(sortDesigns(items, "name").map((d) => d.title), ["afiche", "Boda", "Óvalo"]); // Ó sorts as O
+  assert.equal(items[0].title, "Óvalo"); // the list itself is untouched
+});
+
+test("the shortcut list covers the editor's key handler (UI6)", async () => {
+  const { SHORTCUTS } = await import("../../web/js/model.js");
+  const { readFileSync } = await import("node:fs");
+  const editor = readFileSync(new URL("../../web/js/editor.js", import.meta.url), "utf8");
+  const keys = SHORTCUTS.map(([k]) => k).join(" ");
+  for (const letter of ["z", "y", "d", "c", "x", "v", "a", "g", "b", "i", "u"]) {
+    assert.ok(editor.includes(`k === "${letter}"`), `editor handles Ctrl+${letter}`);
+    assert.ok(keys.includes(`Ctrl+${letter.toUpperCase()}`), `Ctrl+${letter.toUpperCase()} is listed`);
+  }
+});
+
+test("ruler guides snap like page edges; ruler numbers stay apart; a guide is found by distance (UI8)", async () => {
+  const { guideAt, rulerStep, SHORTCUTS } = await import("../../web/js/model.js");
+  const page = { width: 1000, height: 800 };
+  const result = snap({ left: 303, top: 503, width: 50, height: 50 }, [], page, 6, [{ axis: "x", pos: 300 }, { axis: "y", pos: 500 }]);
+  assert.equal(result.dx, -3);
+  assert.equal(result.dy, -3);
+  assert.deepEqual(result.guides, [{ axis: "x", pos: 300 }, { axis: "y", pos: 500 }]);
+  assert.equal(snap({ left: 303, top: 503, width: 50, height: 50 }, [], page, 6).dx, 0); // without the guides
+
+  assert.equal(rulerStep(1), 50);
+  assert.equal(rulerStep(0.25), 200);
+  assert.equal(rulerStep(4), 20);
+  const guides = [{ axis: "x", pos: 100 }, { axis: "y", pos: 40 }];
+  assert.equal(guideAt(guides, { x: 103, y: 500 }, 4), 0);
+  assert.equal(guideAt(guides, { x: 500, y: 38 }, 4), 1);
+  assert.equal(guideAt(guides, { x: 500, y: 500 }, 4), -1);
+  assert.equal(guideAt(undefined, { x: 0, y: 0 }, 4), -1);
+  assert.ok(SHORTCUTS.some(([keys]) => keys === "Mayús+R"));
+});
